@@ -2,11 +2,9 @@ __author__ = 'ruben'
 
 import matplotlib.pyplot as plt
 import scipy.io as sio
-from scipy import ndimage
+from scipy import signal
 import argparse
 import numpy as np
-from neuronpy.graphics import spikeplot
-from neuronpy.math import kernel
 
 parser = argparse.ArgumentParser(description='Function to plot a matlab processed hc-5 database file')
 parser.add_argument('PATH', type=str, nargs='+',
@@ -40,9 +38,34 @@ def get_psth(data, bin_size, **kwargs):
             spike_bin = data[k]
             hist, _ = np.histogram(a=spike_bin, bins=np.ceil(bin_max/bin_size), range=(bin_min, bin_max))
             psth += hist
-        return psth/(len(keys)*bin_size)
+        return psth*1000./(len(keys)*bin_size)
     else:
         return None
+
+def get_scalogram(data, **kwargs):
+    if 'wavelet' in kwargs:
+        wavelet = kwargs['wavelet']
+    else:
+        wavelet = signal.ricker()
+    if 'levels' in kwargs:
+        levels = kwargs['levels']
+    else:
+        levels = np.arange(1, 11)
+    return signal.cwt(data, wavelet, levels)
+
+# First-order statistics
+def firing_rate(spikes):
+    '''
+    Rate of the spike train.
+    '''
+    return (len(spikes)-1)/(spikes[-1]-spikes[0])
+
+def CV(spikes):
+    '''
+    Coefficient of variation.
+    '''
+    ISI = np.diff(spikes) # interspike intervals
+    return np.std(ISI)/np.mean(ISI)
 
 
 if __name__ == '__main__':
@@ -61,17 +84,43 @@ if __name__ == '__main__':
     clusters = data['Spike'][0]['totclu'][0]
     laps = data['Laps'][0]['StartLaps'][0]
     events = data['Spike'][0]['res'][0]
+    eeg = data['Track'][0]['eeg'][0]
+    mazeId = data['Laps'][0]['MazeSection'][0]
     fs = 1250.0
 
     #  extract the spikes times for each neuron
     spikes = {}
+    average_firing = list()
+    coeff_var = list()
     for neuron in range(1, max(clusters)):
         spikes['neuron {}'.format(neuron)] = events[clusters == neuron] / fs
-    # max time based on the time of the last spike
+        average_firing.append(firing_rate(spikes['neuron {}'.format(neuron)]))
+        coeff_var.append(CV(spikes['neuron {}'.format(neuron)]))
+        print 'Firing rate of neuron {} = {:03.2f} Hz, and coeff. variation {:03.2f}'.format(neuron,average_firing[-1], coeff_var[-1])
+
+    # distribution of firing rates
     time_max = max(spikes[max(spikes)])
+
+    n, bins = np.histogram(average_firing, bins=10)
+    his_fr = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
+    his_ax = his_fr.add_axes([0.1, 0.1, 0.8, 0.8])
+    pos = np.arange(len(n))+0.5
+    his_ax.barh(pos, n, align='center', height=.5, color='m')
+    plt.title('Firing rate distribution')
+    plt.yticks(pos-.25, ['{:03.2f} Hz'.format(b) for b in bins])
+
+    # distribution of ISI
+    n, bins = np.histogram(coeff_var, bins=10)
+    his_cv = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
+    his_cv_ax = his_cv.add_axes([0.1, 0.1, 0.8, 0.8])
+    pos = np.arange(len(n))+0.5
+    his_cv_ax.barh(pos, n, align='center', height=.5, color='m')
+    plt.title('Distribution of CV')
+    plt.yticks(pos-.25, ['{:03.2f}'.format(b) for b in bins])
+
     #  Configure the figure's window
     fig = plt.figure(frameon=False, figsize=(17, 10), dpi=80, facecolor='w', edgecolor='k')
-    ax = fig.add_axes([0, 0, 1, 1])
+    ax = fig.add_axes([0, 0.3, 1, 0.7])
     ax.axis('off')
 
     #  Plot the spike events using vertical marker. s is to space out the spikes vertically
@@ -81,11 +130,15 @@ if __name__ == '__main__':
         c += 5
 
     plt.ylim((-10, c + 5))
-    psth = get_psth(data=spikes, bin_size=.5)
-    fig2 = plt.figure(frameon=False, figsize=(17, 2), dpi=80, facecolor='w', edgecolor='k')
-    ax2 = fig2.add_axes([0, 0, 1, 1])
+    psth = get_psth(data=spikes, bin_size=.05)
+    ax2 = fig.add_axes([0, 0.2, 1, 0.1], sharex=ax)
     ax2.axis('off')
-    ax2.plot(psth, marker='o')
+    ax2.plot(np.arange(start=0, stop=time_max, step=time_max/len(psth)), psth)
+
+    ax3 = fig.add_axes([0, 0, 1, 0.2], sharex=ax)
+    ax3.axis('off')
+    ax3.plot(np.arange(start=0, stop=time_max, step=time_max/len(eeg)), eeg, color='r')
+    ax3.plot(np.arange(start=0, stop=time_max, step=time_max/len(mazeId)), (mazeId*2000)-10000., color='k')
 
     canvas, = ax.plot([0], [0])  # empty line to get the axis
     LabelPrinter = LabelPrinter(spikes.keys(), canvas)

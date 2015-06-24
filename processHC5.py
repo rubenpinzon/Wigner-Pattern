@@ -5,6 +5,7 @@ import scipy.io as sio
 from scipy import signal
 import argparse
 import numpy as np
+from itertools import izip
 
 parser = argparse.ArgumentParser(description='Function to plot a matlab processed hc-5 database file')
 parser.add_argument('PATH', type=str, nargs='+',
@@ -70,6 +71,32 @@ def CV(spikes):
     ISI = np.diff(spikes)  # interspike intervals
     return np.std(ISI) / np.mean(ISI)
 
+def pairwise(iterable):
+    "s -> (s0,s1), (s2,s3), (s4, s5), ..."
+    a = iter(iterable)
+    return izip(a, a)
+
+def get_laps(data, laps):
+    '''
+    Creates a dict with spike trains separated by laps
+    :param data
+    :param laps:
+    :return: spikes
+    '''
+    lap = 0
+    perlap = {}
+    for x, y in pairwise(laps):
+        perlap['Lap {}'.format(lap)]= {'spikes': spikes[x:y-1],
+                                       'eeg': data['Track'][0]['eeg'][0][x:y-1],
+                                       'beha': data['Laps'][0]['MazeSection'][0][x:y-1],
+                                       'x': data['Track'][0]['X'][0][x:y-1],
+                                       'y': data['Track'][0]['Y'][0][x:y-1],
+                                       'whspeed': data['Laps'][0]['WhlSpeedCW'][0][x:y-1],
+                                       'speed': data['Track'][0]['Speed'][0][x:y-1],
+                                       }
+        print "Start Lap %d: End %d = %5.2f" % (x, y, (y - x)/1250.)
+
+    return
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -85,11 +112,12 @@ if __name__ == '__main__':
                 # TODO: add test for the presence of the fields in the MAT file
     # Unpack data of interest from the mat file
     clusters = data['Spike'][0]['totclu'][0]
-    laps = data['Laps'][0]['StartLaps'][0]
+    laps = np.trim_zeros(data['Laps'][0]['StartLaps'][0])
     events = data['Spike'][0]['res'][0]
     eeg = data['Track'][0]['eeg'][0]
     mazeId = data['Laps'][0]['MazeSection'][0]
     fs = 1250.0
+    get_laps(laps=laps)
 
     #  extract the spikes times for each neuron
     spikes = {}
@@ -148,7 +176,9 @@ if __name__ == '__main__':
     ax3 = fig.add_axes([0, 0, 1, 0.2], sharex=ax)
     ax3.axis('off')
     ax3.plot(np.arange(start=0, stop=time_max, step=time_max / len(eeg)), eeg, color='r')
-    ax3.plot(np.arange(start=0, stop=time_max, step=time_max / len(mazeId)), (mazeId * 2000) - 10000., color='k')
+    ax3.plot(np.arange(start=0, stop=time_max, step=time_max / len(mazeId)), (mazeId * 2000) - 10000., color='b')
+    for l in laps:
+        ax3.plot([l/fs, l/fs], [-10000, 10000], linewidth=4, color='k')
 
     canvas, = ax.plot([0], [0])  # empty line to get the axis
     LabelPrinter = LabelPrinter(spikes.keys(), canvas)

@@ -1,6 +1,5 @@
 __author__ = 'ruben'
 
-import matplotlib.pyplot as plt
 import scipy.io as sio
 import scipy.ndimage.filters as sfil
 import argparse
@@ -44,13 +43,17 @@ class LoadBuszaki(object):
         self.eeg = self.get_var('eeg')
         self.time = np.linspace(start=0., stop=len(self.eeg) / self.fs, num=len(self.eeg))
         self.numN = max(self.clusters)
+        self.sectionIO = self.get_var('MazeSectEnterLeft')
+        self.tmax = self.get_var('SyncOff')
+        self.panels = {'run': 1, 'whl': 0}
+        self.panels_count = {'run': 0, 'whl': 0}
+
 
         self.x = self.get_var('X')
         self.y = self.get_var('Y')
         self.speed = self.get_var('speed')
         self.whspeed = self.get_var('WhlSpeedCW')
         self.section = self.get_var('MazeSection')
-        self.zone = self.set_zones(intervals=())
         self.split = True
         #   gui and visuals
         self.app = QtGui.QApplication([])
@@ -93,34 +96,39 @@ class LoadBuszaki(object):
     def raster(self, lap=0):
         """
         Plot spike raster
-        :param trigger:
-        :return:
+        Need simplification
         """
-        pw = pg.PlotWidget()
+        widget = {'run': pg.PlotWidget(), 'whl': pg.PlotWidget()}
         space = 0
-        for key, times in self.spk_per_neuron.iteritems():
+        for key, spikes in self.spk_per_neuron.iteritems():
             if lap == 0:
-                spk = times
+                spk = spikes
             else:
-                idx = np.where(np.logical_and(times > self.laps[lap], times <= self.laps[lap + 1]))
-                spk = times[idx]
-            pw.plot(spk / self.fs, np.ones(np.shape(spk)) + space, symbol='s', symbolPen=(space, self.numN), pen=None,
-                    symbolSize=1)
+                win = self.extract_setions(lap)
+                for name, w in win.iteritems():
+                    idx = np.where(np.logical_and(spikes > w[0], spikes <= w[1]))
+                    spk = spikes[idx] - w[0]
+                    widget[name].plot(spk / self.fs, np.ones(np.shape(spk)) + space, symbol='s',
+                                      symbolPen=(space, self.numN), pen=None, symbolSize=1)
             space += 1
-        self.rasterWidget = pw
-        self.layout.addWidget(pw, 0, 0)
+        self.rasterWidget = widget
+        for key, pw in widget.iteritems():
+            self.layout.addWidget(pw, 0, self.panels[key])
+            self.panels_count[key] += 1
 
     def get_psth(self, bin_size=0.05, lap=0):
 
         if lap != 0:
-            bin_min, bin_max = (self.laps[lap], self.laps[lap + 1])
-            psth = np.zeros(np.ceil((bin_max - bin_min) / bin_size), dtype=int)
-            for key, times in self.spk_per_neuron.iteritems():
-                hist, _ = np.histogram(a=times, bins=np.ceil((bin_max - bin_min) / bin_size), range=(bin_min, bin_max))
-                psth += hist
-            y = sfil.gaussian_filter1d(psth * self.fs / (bin_size * self.numN), sigma=100.)
-            time = np.linspace(self.laps[lap] / self.fs, self.laps[lap + 1] / self.fs, num=len(y))
-            self.addWidget(time, y, 'b')
+            win = self.extract_setions(lap)
+            for name, w in win.iteritems():
+                bin_min, bin_max = (w[0], w[1])
+                psth = np.zeros(np.ceil((bin_max - bin_min) / bin_size), dtype=int)
+                for key, times in self.spk_per_neuron.iteritems():
+                    hist, _ = np.histogram(a=times, bins=np.ceil((bin_max - bin_min) / bin_size), range=(bin_min, bin_max))
+                    psth += hist
+                y = sfil.gaussian_filter1d(psth * self.fs / (bin_size * self.numN), sigma=100.)
+                time = np.linspace(0., (w[1] - w[0]) / self.fs, num=len(y))
+                self.addWidget(time, y, 'c', name)
         else:
             return None
 
@@ -133,47 +141,45 @@ class LoadBuszaki(object):
         :return:
         """
         if lap != 0:
-            idx = range(self.laps[lap], self.laps[lap + 1])
-            y = self.__getattribute__(field)[idx]
-            time = np.linspace(self.laps[lap] / self.fs, self.laps[lap + 1] / self.fs, num=len(y))
-            self.addWidget(time, y, color)
-
-        elif self.split:
-            for x in range(len(self.laps) - 1):
-                idx = range(self.laps[x], self.laps[x + 1])
-                y = self.__getattribute__(field)[idx]
-                time = np.linspace(start=0., stop=len(y) / self.fs, num=len(y))
-                pw = pg.PlotWidget()
-                pw.plot(time, y, pen=(x, 10))
-                self.layout.addWidget(pw, x, 0)
+            win = self.extract_setions(lap)
+            for panel, w in win.iteritems():
+                y = self.__getattribute__(field)[w[0]:w[1]]
+                time = np.linspace(0, (w[1] - w[0]) / self.fs, num=len(y))
+                self.addWidget(time, y, color, panel)
         else:
             pw = pg.PlotWidget()
             y = self.__getattribute__(field)
             pw.plot(self.time, y, pen=(255, 0, 125))
             self.layout.addWidget(pw, 0, 0)
 
-    def addWidget(self, time, y, color):
+    def addWidget(self, time, y, color, parent):
         pw = pg.PlotWidget()
 
         pw.plot(time, y, pen=color)
         pw.setFixedHeight(100)
         pw.showGrid(x=True, y=True)
         if self.rasterWidget:
-            pw.setXLink(self.rasterWidget)
-        self.layout.addWidget(pw, self.layout.count() + 1, 0)
+            pw.setXLink(self.rasterWidget[parent])
+        self.layout.addWidget(pw, self.panels_count[parent], self.panels[parent])
+        self.panels_count[parent] += 1
+
 
     def show(self):
         return self.win.show()
 
-    def set_zones(self, intervals=(0, 0)):
+    def extract_setions(self, lap):
+        """splits the laps into two regions, maze and running
+            running 1-6
+            water 8-10
+            wheel 11-13
         """
-        Sets the intervals to divide the laps into zones according to mazeids, whspeed, and speed
-        :param intervals: tuples with sections belonging to mazeids
-        :return: self.zone
-        """
-        idx = 9
+        enter = self.sectionIO[lap]
 
-        return None
+        intervals = {'run': (enter[0, 0], enter[5, 1] if enter[4, 1] != 0 else enter[5, 1]),
+                     'whl': (enter[11, 0], enter[12, 1])}
+
+        return intervals
+
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -186,15 +192,11 @@ if __name__ == '__main__':
     data.plot('section', lap=lap, color='m')
     data.plot('whspeed', lap=lap)
     data.plot('speed', lap=lap)
-
-    data.plot('eeg', lap=lap, color='r')
-    data.get_psth(bin_size=0.1, lap=lap)
+    #
+    # data.plot('eeg', lap=lap, color='r')
+    data.get_psth(bin_size=0.05, lap=lap)
 
     #   Analyze by sections
-
-
     data.show()
-
     QtGui.QApplication.instance().exec_()
-
 

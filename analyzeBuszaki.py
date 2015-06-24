@@ -50,8 +50,8 @@ class LoadBuszaki(object):
         self.speed = self.get_var('speed')
         self.whspeed = self.get_var('WhlSpeedCW')
         self.section = self.get_var('MazeSection')
-        self.zone = self.set_zones('whspeed')
-        self.split = False
+        self.zone = self.set_zones(intervals=())
+        self.split = True
         #   gui and visuals
         self.app = QtGui.QApplication([])
         self.win = QtGui.QWidget()
@@ -60,7 +60,6 @@ class LoadBuszaki(object):
         self.layout.setVerticalSpacing(0)
         self.win.setLayout(self.layout)
         self.rasterWidget = None
-        self.lastWidget = None
 
     def get_varnames(self):
         var_names = []
@@ -121,11 +120,11 @@ class LoadBuszaki(object):
                 psth += hist
             y = sfil.gaussian_filter1d(psth * self.fs / (bin_size * self.numN), sigma=100.)
             time = np.linspace(self.laps[lap] / self.fs, self.laps[lap + 1] / self.fs, num=len(y))
-            self.addExtraWidget(time, y, 'b')
+            self.addWidget(time, y, 'b')
         else:
             return None
 
-    def plot(self, field, lap=None, color='g', **kwargs):
+    def plot(self, field, lap=0, color='g'):
         """
         Create a new figure with the specified variable If Split is active,
         data oer lap is shown on top of each other
@@ -133,11 +132,12 @@ class LoadBuszaki(object):
         :param field:
         :return:
         """
-        if lap:
+        if lap != 0:
             idx = range(self.laps[lap], self.laps[lap + 1])
             y = self.__getattribute__(field)[idx]
             time = np.linspace(self.laps[lap] / self.fs, self.laps[lap + 1] / self.fs, num=len(y))
-            self.addExtraWidget(time, y, color)
+            self.addWidget(time, y, color)
+
         elif self.split:
             for x in range(len(self.laps) - 1):
                 idx = range(self.laps[x], self.laps[x + 1])
@@ -146,19 +146,13 @@ class LoadBuszaki(object):
                 pw = pg.PlotWidget()
                 pw.plot(time, y, pen=(x, 10))
                 self.layout.addWidget(pw, x, 0)
-            self.lastWidget = pw
-        elif 'type' in kwargs:
-            pw = self.lastWidget
-            for s in self.__getattribute__(field):
-                pw.plot(s / self.fs * np.array([1, 1]), np.array([0, 1]), pen=color, symbol='o')
         else:
             pw = pg.PlotWidget()
             y = self.__getattribute__(field)
             pw.plot(self.time, y, pen=(255, 0, 125))
-            self.layout.addWidget(pw, self.layout.count() + 1, 0)
-            self.lastWidget = pw
+            self.layout.addWidget(pw, 0, 0)
 
-    def addExtraWidget(self, time, y, color):
+    def addWidget(self, time, y, color):
         pw = pg.PlotWidget()
 
         pw.plot(time, y, pen=color)
@@ -167,55 +161,40 @@ class LoadBuszaki(object):
         if self.rasterWidget:
             pw.setXLink(self.rasterWidget)
         self.layout.addWidget(pw, self.layout.count() + 1, 0)
-        self.lastWidget = pw
 
     def show(self):
         return self.win.show()
 
-    def set_zones(self, field, lo=0, hi=1):
+    def set_zones(self, intervals=(0, 0)):
         """
         Sets the intervals to divide the laps into zones according to mazeids, whspeed, and speed
         :param intervals: tuples with sections belonging to mazeids
         :return: self.zone
         """
+        idx = 9
 
-        return self.smith_trigger(field, hi, lo)
-
-    def smith_trigger(self, field, hi, lo=0.):
-        time_events = list()
-        idx = 0
-        value_old = self.__getattribute__(field)[0]
-
-        for value in self.__getattribute__(field):
-            if value >= hi > value_old:
-                #   crossed thr to hi
-                time_events.append(idx)
-            elif value <= lo < value_old:
-                #   crossed thr to lo
-                time_events.append(idx)
-            value_old = value
-            idx += 1
-        return time_events
-
+        return None
 
 if __name__ == '__main__':
     args = parser.parse_args()
     data = LoadBuszaki(args.PATH[0])
 
     #   Analyze by laps
-    # data.split = True
-    lap = None
-    # data.raster(lap=lap)
-    #data.plot('section', lap=lap, color='m')
-    data.plot('speed', lap=lap)
+    data.split = True
+    lap = 5
+    data.raster(lap=lap)
+    data.plot('section', lap=lap, color='m')
     data.plot('whspeed', lap=lap)
-    data.plot('zone', type='event')
+    data.plot('speed', lap=lap)
 
-
-    # data.plot('eeg', lap=lap, color='r')
-    # data.get_psth(bin_size=0.1, lap=lap)
+    data.plot('eeg', lap=lap, color='r')
+    data.get_psth(bin_size=0.1, lap=lap)
 
     #   Analyze by sections
+
+
     data.show()
 
     QtGui.QApplication.instance().exec_()
+
+

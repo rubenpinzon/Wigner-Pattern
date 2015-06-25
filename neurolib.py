@@ -24,6 +24,7 @@ class LoadBuszaki(object):
 
         # Loading data
         self.clusters = self.get_var('totclu')
+        self.numN = max(self.clusters)
         self.spikes = self.get_var('res')
         self.fs = float(self.get_var('SamplingFrequency'))
         self.spk_per_neuron = self.get_neurons()
@@ -31,12 +32,13 @@ class LoadBuszaki(object):
         self.laps = np.trim_zeros(self.get_var('StartLaps'))
         self.eeg = self.get_var('eeg')
         self.time = np.linspace(start=0., stop=len(self.eeg) / self.fs, num=len(self.eeg))
-        self.numN = max(self.clusters)
         self.sectionIO = self.get_var('MazeSectEnterLeft')
         self.tmax = self.get_var('SyncOff')
         self.panels = {'stats': 2, 'run': 1, 'whl': 0}
         self.panels_count = {'run': 0, 'whl': 0, 'stats': 0}
         self.autocorr = None
+        self.autocorr_mean = None  # mean of the autocorrelogram
+        self.fr_smo = None  # smooth firing rates
 
         self.x = self.get_var('X')
         self.y = self.get_var('Y')
@@ -89,7 +91,8 @@ class LoadBuszaki(object):
         """
         widget = {'run': pg.PlotWidget(), 'whl': pg.PlotWidget()}
         space = 0
-        for key, spikes in self.spk_per_neuron.iteritems():
+        for neuron in range(self.numN):
+            spikes = self.spk_per_neuron['neuron {}'.format(neuron)]
             if lap == 0:
                 spk = spikes
             else:
@@ -104,6 +107,7 @@ class LoadBuszaki(object):
         for key, pw in widget.iteritems():
             self.layout.addWidget(pw, 0, self.panels[key])
             self.panels_count[key] += 1
+            pw.showGrid(x=True, y=True)
 
     def get_psth(self, bin_size=0.05, lap=0):
 
@@ -116,7 +120,7 @@ class LoadBuszaki(object):
                     hist, _ = np.histogram(a=times, bins=np.ceil((bin_max - bin_min) / bin_size),
                                            range=(bin_min, bin_max))
                     psth += hist
-                y = sfil.gaussian_filter1d(psth * self.fs / (bin_size * self.numN), sigma=100.)
+                y = sfil.gaussian_filter1d(psth * self.fs / (bin_size * self.numN), sigma=self.fs * .1)
                 time = np.linspace(0., (w[1] - w[0]) / self.fs, num=len(y))
                 self.addWidget(time, y, 'c', name)
         else:
@@ -144,7 +148,6 @@ class LoadBuszaki(object):
 
     def addWidget(self, time, y, color, parent):
         pw = pg.PlotWidget()
-
         pw.plot(time, y, pen=color)
         pw.setFixedHeight(100)
         pw.showGrid(x=True, y=True)
@@ -169,9 +172,10 @@ class LoadBuszaki(object):
         return intervals
 
     def firing_rate(self):
-        firing = {}
-        for key, spikes in self.spk_per_neuron.iteritems():
-            firing[key] = float(len(spikes)) * self.fs / (spikes[-1] - spikes[0]) if len(spikes) != 0. else 0.
+        firing = list()
+        for neuron in range(self.numN):
+            spk = self.spk_per_neuron['neuron {}'.format(neuron)]
+            firing.append(float(len(spk)) * self.fs / (spk[-1] - spk[0]) if len(spk) != 0. else 0.)
         return firing
 
         # Second-order statistics from Brian
@@ -207,8 +211,9 @@ class LoadBuszaki(object):
         W = np.zeros(2 * n)
         W[:n] = T - bin * np.arange(n - 1, -1, -1)
         W[n:] = T - bin * np.arange(n)
+        full = H / W
 
-        return H / W
+        return full[0:np.ceil(width / bin)]
 
     def autocorrelogram(self, width=0.002, bin=0.001, plot=True):
         """
@@ -216,16 +221,88 @@ class LoadBuszaki(object):
         T is the total duration (optional) and should be greater than the duration of T1 and T2.
         The result is in Hz (rate of coincidences in each bin).
         """
-        aucorr = {}
-        for key, spikes in self.spk_per_neuron.iteritems():
-            aucorr[key] = self.correlogram(T1=spikes/self.fs, T2=spikes/self.fs, width=width, bin=bin) if len(spikes) != 0 else np.array([0,0])
+        aucorr = list()
+        mean_aucorr = list()
+        for neuron in range(self.numN):
+            spk = self.spk_per_neuron['neuron {}'.format(neuron)] / self.fs
+            aucorr.append(self.correlogram(T1=spk, T2=spk, width=width, bin=bin) if len(spk) != 0 else np.array([0, 0]))
+            idx = np.abs(aucorr[neuron] - np.mean(aucorr[neuron])).argmin()
+            mean_aucorr.append(idx * bin)
         if plot:
             pw = pg.PlotWidget()
             cnt = 0
-            for key, value in aucorr.iteritems():
+            for value in aucorr:
                 pw.plot(value, pen=(cnt, self.numN))
                 cnt += 1
-            self.layout.addWidget(pw, 0, 2)
+            self.layout.addWidget(pw, self.panels_count['stats'], 2)
             self.panels_count['stats'] += 1
+        self.autocorr = aucorr
+        self.autocorr_mean = mean_aucorr
 
-        return aucorr
+    def plotxy(self, varx, vary):
+
+        pw = pg.PlotWidget()
+        y = self.__getattribute__(vary)
+        x = self.__getattribute__(varx)
+        pw.plot(x, y, pen=None, symbol='o', symbolpen='b')
+
+        self.layout.addWidget(pw, self.panels_count['stats'], 2)
+        self.panels_count['stats'] += 1
+
+    def smooth_spikes(self, lap, plot=True):
+
+        if lap != 0:
+            widget = {'run': pg.PlotWidget(), 'whl': pg.PlotWidget()}
+            space = 0
+            win = self.extract_setions(lap)
+            #   firing rates smoothed per panel
+            fr_smo = {'run': list(), 'whl': list()}
+            for neuron in range(self.numN):
+                spk = self.spk_per_neuron['neuron {}'.format(neuron)]
+                for panel, w in win.iteritems():
+                    idx = np.where(np.logical_and(spk > w[0], spk <= w[1]))
+                    y = np.zeros(w[1] - w[0])
+                    y[spk[idx] - w[0]] = 1.
+                    fr = sfil.gaussian_filter1d(y, sigma=self.fs * .1)
+                    fr_smo[panel].append(fr)
+                    if plot:
+                        time = np.linspace(0, (w[1] - w[0]) / self.fs, num=len(fr))
+                        if np.mean(fr) > (.5 / self.fs):
+                            widget[panel].plot(time, fr + 0.01 * space, pen=(space, self.numN))
+
+                space += 1
+
+            if plot:
+                for key, pw in widget.iteritems():
+                    self.layout.addWidget(pw, self.panels_count[key], self.panels[key])
+                    self.panels_count[key] += 1
+                    if self.rasterWidget:
+                        pw.setXLink(self.rasterWidget[key])
+            self.fr_smo = fr_smo
+
+    def sort_firing(self, plot=True):
+
+        fr_sort = {'run': list(), 'whl': list()}
+        widget = {'run': pg.PlotWidget(), 'whl': pg.PlotWidget()}
+
+        for panel in self.panels:
+            idx = list()
+            if panel in self.fr_smo:
+                firing = self.fr_smo[panel]
+                for f in firing:
+                    idx.append(np.argmax(f))
+                fr_sort[panel] = np.argsort(idx)
+                if plot:
+                    space = 0
+                    for n in fr_sort[panel]:
+                        fr = self.fr_smo[panel][n]
+                        if np.mean(fr) > (.5 / self.fs):
+                            widget[panel].plot(fr + 0.01 * space, pen=(space, self.numN))
+                        space += 1
+                    for key, pw in widget.iteritems():
+                        self.layout.addWidget(pw, self.panels_count[key], self.panels[key])
+                        self.panels_count[key] += 1
+
+
+
+

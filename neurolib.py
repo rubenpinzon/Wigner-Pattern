@@ -27,6 +27,7 @@ class LoadBuszaki(object):
         self.numN = max(self.clusters)
         self.spikes = self.get_var('res')
         self.fs = float(self.get_var('SamplingFrequency'))
+        self.celltype = self.get_var('isIntern') #TODO: separate spks based on neuron type
         self.spk_per_neuron = self.get_neurons()
         self.ave_firing = self.firing_rate()
         self.laps = np.trim_zeros(self.get_var('StartLaps'))
@@ -45,6 +46,7 @@ class LoadBuszaki(object):
         self.speed = self.get_var('speed')
         self.whspeed = self.get_var('WhlSpeedCW')
         self.section = self.get_var('MazeSection')
+        self.theta = self.get_var('thetaPh')
         self.split = True
         #   gui and visuals
         self.app = QtGui.QApplication([])
@@ -92,17 +94,21 @@ class LoadBuszaki(object):
         widget = {'run': pg.PlotWidget(), 'whl': pg.PlotWidget()}
         space = 0
         for neuron in range(self.numN):
-            spikes = self.spk_per_neuron['neuron {}'.format(neuron)]
-            if lap == 0:
-                spk = spikes
-            else:
-                win = self.extract_setions(lap)
-                for name, w in win.iteritems():
-                    idx = np.where(np.logical_and(spikes > w[0], spikes <= w[1]))
-                    spk = spikes[idx] - w[0]
-                    widget[name].plot(spk / self.fs, np.ones(np.shape(spk)) + space, symbol='s',
-                                      symbolPen=(space, self.numN), pen=None, symbolSize=1)
-            space += 1
+            if 'neuron {}'.format(neuron) in self.spk_per_neuron:
+                spikes = self.spk_per_neuron['neuron {}'.format(neuron)]
+                if lap == 0:
+                    spk = spikes
+                    widget['run'].plot(spk / self.fs, np.ones(np.shape(spk)) + space, symbol='s',
+                                          symbolPen=(space, self.numN), pen=None, symbolSize=1)
+                    # TODO: has to add a new case for the raster of the whole record
+                else:
+                    win = self.extract_setions(lap)
+                    for name, w in win.iteritems():
+                        idx = np.where(np.logical_and(spikes > w[0], spikes <= w[1]))
+                        spk = spikes[idx] - w[0]
+                        widget[name].plot(spk / self.fs, np.ones(np.shape(spk)) + space, symbol='s',
+                                          symbolPen=(space, self.numN), pen=None, symbolSize=1)
+                space += 1
         self.rasterWidget = widget
         for key, pw in widget.iteritems():
             self.layout.addWidget(pw, 0, self.panels[key])
@@ -167,8 +173,8 @@ class LoadBuszaki(object):
             wheel 11-13
         """
         enter = self.sectionIO[lap]
-        intervals = {'run': (enter[0, 0], enter[5, 1] if enter[4, 1] != 0 else enter[5, 1]),
-                     'whl': (enter[11, 0], enter[12, 1])}
+        intervals = {'run': (enter[0, 0], enter[4, 1]-1 if enter[4, 1] != 0 else enter[5, 1]-1),
+                     'whl': (enter[11, 0], enter[12, 1]-1)}
         return intervals
 
     def firing_rate(self):
@@ -258,19 +264,20 @@ class LoadBuszaki(object):
             #   firing rates smoothed per panel
             fr_smo = {'run': list(), 'whl': list()}
             for neuron in range(self.numN):
-                spk = self.spk_per_neuron['neuron {}'.format(neuron)]
-                for panel, w in win.iteritems():
-                    idx = np.where(np.logical_and(spk > w[0], spk <= w[1]))
-                    y = np.zeros(w[1] - w[0])
-                    y[spk[idx] - w[0]] = 1.
-                    fr = sfil.gaussian_filter1d(y, sigma=self.fs * .1)
-                    fr_smo[panel].append(fr)
-                    if plot:
-                        time = np.linspace(0, (w[1] - w[0]) / self.fs, num=len(fr))
-                        if np.mean(fr) > (.5 / self.fs):
-                            widget[panel].plot(time, fr + 0.01 * space, pen=(space, self.numN))
+                if 'neuron {}'.format(neuron) in self.spk_per_neuron:
+                    spk = self.spk_per_neuron['neuron {}'.format(neuron)]
+                    for panel, w in win.iteritems():
+                        idx = np.where(np.logical_and(spk > w[0], spk <= w[1]))
+                        y = np.zeros(w[1] - w[0] + 1)
+                        y[spk[idx] - w[0]] = 1.
+                        fr = sfil.gaussian_filter1d(y, sigma=self.fs * .1)
+                        fr_smo[panel].append(fr)
+                        if plot:
+                            time = np.linspace(0, (w[1] - w[0]) / self.fs, num=len(fr))
+                            if np.mean(fr) > (.5 / self.fs):
+                                widget[panel].plot(time, fr/max(fr) + space, pen=(space, self.numN))
 
-                space += 1
+                    space += 1
 
             if plot:
                 for key, pw in widget.iteritems():
@@ -297,12 +304,29 @@ class LoadBuszaki(object):
                     for n in fr_sort[panel]:
                         fr = self.fr_smo[panel][n]
                         if np.mean(fr) > (.5 / self.fs):
-                            widget[panel].plot(fr + 0.01 * space, pen=(space, self.numN))
+                            time = np.linspace(0., len(fr)/self.fs, num=len(fr))
+                            widget[panel].plot(time, fr/max(fr) + space, pen=(space, self.numN))
                         space += 1
                     for key, pw in widget.iteritems():
                         self.layout.addWidget(pw, self.panels_count[key], self.panels[key])
                         self.panels_count[key] += 1
+                        if self.rasterWidget:
+                            pw.setXLink(self.rasterWidget[key])
 
+    def plot_maze(self, neuron):
 
+        pw = pg.PlotWidget()
+        y = self.x
+        x = self.y
+        pw.plot(x, y, pen=None, symbol='o', symbolpen='b')
 
+        self.layout.addWidget(pw, self.panels_count['stats'], 2)
+        self.panels_count['stats'] += 1
 
+    def no_inh(self):
+        """remove inhibitory neurons from spikes"""
+        for i in range(len(self.celltype)):
+            if self.celltype[i] == 1:
+                print 'Neuron {} is inhibitory, removing'.format(i)
+                del self.spk_per_neuron['neuron {}'.format(i)]
+        self.numN = len(self.spk_per_neuron)

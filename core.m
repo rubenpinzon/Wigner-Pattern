@@ -72,7 +72,7 @@ SpkWheel_DH = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE,...
                         trial, color);
 
 %% GUI based DataHigh
-DataHigh(SpkRun_DH, 'DimReduce');
+%DataHigh(SpkRun_DH, 'DimReduce');
 
 %% Command based GPFA based on DataHigh Library
 

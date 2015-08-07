@@ -46,7 +46,7 @@ for lap = 1:numLaps
     %(b) Runing in the maze. Extracted based on the
     %EnterSection time stamp without considering left-right
     idx_run = [events{lap}(2,1), sum(events{lap}(5:6,2))];
-    int_at_maze(lap, :) = idx_run
+    int_at_maze(lap, :) = idx_run;
     length_run(lap) = (idx_run(2)-idx_run(1))/Fs;
     %sect 1:enter, 6:exit
     for neu=1:N
@@ -75,39 +75,49 @@ SpkWheel_DH = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE,...
 %DataHigh(SpkRun_DH, 'DimReduce');
 
 %% Command based GPFA based on DataHigh Library
+% remove one neuron at random until having only 15 
+% leave two laps to test anc calculate ll_test = P(Ytest|model)
 
-bin_sizes       = 0.03:0.01:0.1;
-dims            = 2:40; % Target latent dimensions
+bin_sizes       = 0.1; 
+dims            = 2:15; % Target latent dimensions
 results(length(bin_sizes)).bin = bin_sizes(end);
-cv_trials       = randperm(length(SpkRun_DH));
-mask            = false(1, length(SpkRun_DH));
-fold_indices    = floor(linspace(1,length(SpkRun_DH)+1, 4));  %three chunks
+test_trials     = [1, 2; 3, 4; 5, 6]; % one left and one right, 3 folds
 
-parfor_progress(length( bin_sizes), mfilename);
-parfor cnt = 1:length( bin_sizes)
+
+D               = SpkRun_DH;
+firing_thr      = 0.2 ; % Minimum firing rate find which 
+                        % neurons should be kept
+m               = mean([D.data],2) * Fs;
+keep_neurons    = m >= firing_thr;
+fprintf('%d neurons remained with firing rate above %2.2f Hz\n',...
+            sum(keep_neurons),firing_thr)
+% Remove low firing rate neurons
+for itrial = 1:length(D)
+    D(itrial).data = D(itrial).data(keep_neurons,:);
+end
+cells           = sum(keep_neurons);
+removeCells     = randperm(cells);
+mask            = false(1,length(D));
+
+for cnt = 1: cells - 15
     
-    bin             = bin_sizes(cnt);
-    D               = SpkRun_DH;
-    firing_thr      = 0.2 ; % Minimum firing rate find which 
-                            % neurons should be kept
-    m               = mean([D.data],2) * Fs;
-    keep_neurons    = m >= firing_thr;
-    fprintf('%d neurons remained with firing rate above %2.2f Hz\n',...
-                sum(keep_neurons),firing_thr)
-    % Remove low firing rate neurons
+    
+    % Remove a random neuron 
     for itrial = 1:length(D)
-        D(itrial).data = D(itrial).data(keep_neurons,:);
+        D(itrial).data(removeCells(cnt),:) = [];
     end
-
-    
-    bin_width   = ceil(bin * Fs); % bin size (Seconds * Fs) = samples
-    useSqrt     = 1; % square root tranform?    
-    seq         = [];
+    yDim        = size(D(1).data, 1);
+    fprintf('Neuron %d-th removed, %d remaining\n',removeCells(cnt),...
+                                                yDim)
+    bin             = bin_sizes;    
+    bin_width       = ceil(bin * Fs); % bin size (Seconds * Fs) = samples
+    useSqrt         = 1; % square root tranform?    
+    seq             = [];
     
     
     %Extrat bins for one trial, since all the trials
     %are of the same duration
-    yDim        = size(D(1).data, 1);
+
     T           = floor(size(D(1).data, 2) / bin_width);
 
     for n = 1 : length(D)
@@ -123,42 +133,42 @@ parfor cnt = 1:length( bin_sizes)
         end
     end
     [D.data]    = deal(seq.y);
-
+    %prellocating variables
     lat         = []; % Struct for the latent variables
-    like_fold   = 0;  % these store the likelihood
+    ll_test     = 0;  % these store the likelihood
+    ll_train    = 0;  % these store the likelihood
     mse_fold    = 0;  % and mse for one fold
-    like        = zeros(length(dims),3); % keeps a running total of likelihood
-    mse         = zeros(length(dims),3); % and mse
-
-    %Organize the cross-validation by spliting laps in three shunks
-    fprintf('Bin size %3.0f ms ready\n',1000*bin)
-   
+    ll_train    = zeros(length(dims),length(test_trials)); % keeps a running total of likelihood
+    ll_test     = zeros(length(dims),length(test_trials)); % keeps a running total of likelihood
+    mse         = zeros(length(dims),length(test_trials)); % and mse
+    % 
+    paramsGPFA = cell(length(dims), length(test_trials));
+    orth_traje = cell(length(dims), length(test_trials));
+    
     %Prepare data for the datahigh library
     [D.y] = D.data;
     for i=1:length(D);
         D(i).trialId = i;
         D(i).T = size(D(i).data,2);
     end
-    % 
-    paramsGPFA = cell(length(dims), 3);
-    orth_traje = cell(length(dims), 3);
+    
     for idim = 1 : length(dims)
-        for ifold = 1 : 3  % three-fold cross-validation        
+        for ifold = 1 : length(test_trials)  % three-fold cross-validation        
             % prepare masks:
             % test_mask isolates a single fold, train_mask takes the rest
             test_mask = mask;
-            test_mask(cv_trials(fold_indices(ifold):...
-                                fold_indices(ifold+1)-1)) = true;
+            test_mask(test_trials(ifold, :)) = true;
+            
             train_mask = ~test_mask;
 
             train_data = D(train_mask);
             test_data = D(test_mask);
             %training of the GPFA
-            [params, gpfa_traj, chugsLL] = gpfa_mod(train_data,idim,...
-                                                      'bin_width', bin_width);
+            [params, gpfa_traj, ll_train] = gpfa_mod(train_data,dims(idim),...
+                                                     'bin_width', bin_width);
 
             %Posterior of test data given the trained model
-            [~, like_fold] = exactInferenceWithLL(test_data, params,'getLL',1);
+            [a, ll_test] = exactInferenceWithLL(test_data, params,'getLL',1);
 
             %Validation
             cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
@@ -167,14 +177,15 @@ parfor cnt = 1:length( bin_sizes)
             mse_fold = sum(sum((cvdata-[test_data.data]).^2));
 
             mse(idim, ifold) = mse_fold;
-            like(idim, ifold) = like_fold;
+            ll_test(idim, ifold) = ll_test;
+            ll_train(idim, ifold) = ll_train;
             paramsGPFA{idim, ifold} = params;
             orth_traje{idim, ifold} = gpfa_traj;
         end        
     end
     % best dimension and best across folds
-    [~, foldmax] = max(sum(like));
-    [~, imax] = max(like(:,foldmax));
+    [a, foldmax] = max(sum(ll_test));
+    [a, imax] = max(like(:,foldmax));
     
     results(cnt).like = like;
     results(cnt).mse = mse;
@@ -219,15 +230,11 @@ parfor cnt = 1:length( bin_sizes)
     plot(imax, mean_like(imax),'r*', 'markersize',10)
     xlabel('Latent Dimension')
     ylabel('Log Likelihood')
-    namePNG = ['Results/i01_maze06.002_run_w' num2str(window) ...
-                's_b' num2str(1000*bin) 'ms'];
+    namePNG = sprintf('Results/i01_maze06.002_cells_%d', yDim);
     print(gcf,[basepath namePNG],'-dpng')
     savefig(gcf, [basepath namePNG '.fig'])
-    %========== Tracking progress ===============
-    parfor_progress;
-    %============================================
     
 end
-parfor_progress(0,mfilename);
+
 save([basepath 'Results/i01_maze06.002_run_w' num2str(window)...
         's_results.mat'],'results')

@@ -79,10 +79,9 @@ SpkWheel_DH = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE,...
 % leave two laps to test anc calculate ll_test = P(Ytest|model)
 
 bin_sizes       = 0.1; 
-dims            = 2:15; % Target latent dimensions
+dims            = 3:15; % Target latent dimensions
 results(length(bin_sizes)).bin = bin_sizes(end);
-test_trials     = [1, 2; 3, 4; 5, 6]; % one left and one right, 3 folds
-
+test_trials     = [1:4; 5:8; 12:15]; % one left and one right, 3 folds
 
 D               = SpkRun_DH;
 firing_thr      = 0.2 ; % Minimum firing rate find which 
@@ -98,28 +97,25 @@ end
 cells           = sum(keep_neurons);
 removeCells     = randperm(cells);
 mask            = false(1,length(D));
+saveD           = D; 
 
 for cnt = 1: cells - 15
-    
-    
+    D           = saveD;     
     % Remove a random neuron 
-    for itrial = 1:length(D)
-        D(itrial).data(removeCells(cnt),:) = [];
+    for itrial = 1:length(saveD)
+        D(itrial).data(removeCells(1:cnt),:) = [];
     end
     yDim        = size(D(1).data, 1);
+    
     fprintf('Neuron %d-th removed, %d remaining\n',removeCells(cnt),...
                                                 yDim)
-    bin             = bin_sizes;    
-    bin_width       = ceil(bin * Fs); % bin size (Seconds * Fs) = samples
+    bin_width       = ceil(bin_sizes * Fs); % bin size (Seconds * Fs) = samples
     useSqrt         = 1; % square root tranform?    
-    seq             = [];
-    
+    seq             = [];    
     
     %Extrat bins for one trial, since all the trials
     %are of the same duration
-
     T           = floor(size(D(1).data, 2) / bin_width);
-
     for n = 1 : length(D)
         seq(n).y   = nan(yDim, T);
         for t = 1:T
@@ -133,18 +129,20 @@ for cnt = 1: cells - 15
         end
     end
     [D.data]    = deal(seq.y);
+    
     %prellocating variables
     lat         = []; % Struct for the latent variables
-    ll_test     = 0;  % these store the likelihood
-    ll_train    = 0;  % these store the likelihood
+    ll_te       = 0;  % these store the likelihood
+    ll_tr       = 0;  % these store the likelihood
     mse_fold    = 0;  % and mse for one fold
-    ll_train    = zeros(length(dims),length(test_trials)); % keeps a running total of likelihood
-    ll_test     = zeros(length(dims),length(test_trials)); % keeps a running total of likelihood
-    mse         = zeros(length(dims),length(test_trials)); % and mse
-    % 
-    paramsGPFA = cell(length(dims), length(test_trials));
-    orth_traje = cell(length(dims), length(test_trials));
-    
+    folds       = size(test_trials,1);
+    ll_train    = zeros(length(dims),folds); % keeps a running total of likelihood
+    ll_test     = zeros(length(dims),folds); % keeps a running total of likelihood
+    mse         = zeros(length(dims),folds); % and mse    
+    paramsGPFA  = cell(length(dims), folds);
+    orth_traje_tr  = cell(length(dims), folds); %training orth_traje
+    orth_traje_te  = cell(length(dims), folds); %training orth_traje
+
     %Prepare data for the datahigh library
     [D.y] = D.data;
     for i=1:length(D);
@@ -153,7 +151,7 @@ for cnt = 1: cells - 15
     end
     
     for idim = 1 : length(dims)
-        for ifold = 1 : length(test_trials)  % three-fold cross-validation        
+        for ifold = 1 : folds  % three-fold cross-validation        
             % prepare masks:
             % test_mask isolates a single fold, train_mask takes the rest
             test_mask = mask;
@@ -164,34 +162,47 @@ for cnt = 1: cells - 15
             train_data = D(train_mask);
             test_data = D(test_mask);
             %training of the GPFA
-            [params, gpfa_traj, ll_train] = gpfa_mod(train_data,dims(idim),...
+            [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,dims(idim),...
                                                      'bin_width', bin_width);
 
             %Posterior of test data given the trained model
-            [a, ll_test] = exactInferenceWithLL(test_data, params,'getLL',1);
-
-            %Validation
+            [traj, ll_te] = exactInferenceWithLL(test_data, params,'getLL',1);
+            % orthogonalize the trajectories
+            [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
+            traj = segmentByTrial(traj, Xorth, 'data');
+            traj = rmfield(traj, {'Vsm', 'VsmGP', 'xsm'});
+            
+            %Validation with LNO
             cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
                                       (test_data,params,idim));
             cvdata = cell2mat(cv_gpfa_cell(7,:));
             mse_fold = sum(sum((cvdata-[test_data.data]).^2));
 
             mse(idim, ifold) = mse_fold;
-            ll_test(idim, ifold) = ll_test;
-            ll_train(idim, ifold) = ll_train;
+            ll_test(idim, ifold) = ll_te;
+            ll_train(idim, ifold) = ll_tr;
             paramsGPFA{idim, ifold} = params;
-            orth_traje{idim, ifold} = gpfa_traj;
+            orth_traje_tr{idim, ifold} = gpfa_traj;
+            orth_traje_te{idim, ifold} = traj;
+            fprintf('Dimension %d, fold %d',idim, ifold)
         end        
     end
     % best dimension and best across folds
-    [a, foldmax] = max(sum(ll_test));
-    [a, imax] = max(like(:,foldmax));
+    [a, foldmax_te] = max(sum(ll_test));
+    [a, imax_te] = max(ll_test(:,foldmax_te));
+    [a, foldmax_tr] = max(sum(ll_train));
+    [a, imax_tr] = max(ll_test(:,foldmax_tr));
     
-    results(cnt).like = like;
+    results(cnt).ll_test = ll_test;
+    results(cnt).ll_train = ll_train;
     results(cnt).mse = mse;
-    results(cnt).dim = imax;
+    results(cnt).dim = imax_te;
+    results(cnt).GPFA = paramsGPFA;
+    results(cnt).traj_tr = orth_traje_tr;
+    results(cnt).traj_te = orth_traje_te;
+
     % Setup figure to sumarize results
-    cla
+    close all
     figure(cnt)
     til = sprintf('Run Section With %3.1f ms bins and %2.1fs spike trains', 1000*bin, window);
     annotation('textbox', [0 0.9 1 0.1], ...
@@ -202,11 +213,18 @@ for cnt = 1: cells - 15
     set(gcf,'color', 'w', 'position', [100 100 1400 700])
 
     % projection over the three best dimensions (SVD)
-    for itrial = 1:length(test_data)
-        p = orth_traje{imax, foldmax}(itrial).data;
-        c = orth_traje{imax, foldmax}(itrial).epochColors;
+    for itrial = 1:length(train_data)
+        p = orth_traje_tr{imax_tr, foldmax_tr}(itrial).data;
+        c = orth_traje_tr{imax_tr, foldmax_tr}(itrial).epochColors;
         subplot(2,3,[1 2 4 5]), grid on
-        plot3(p(1,:), p(2,:),p(3,:), 'Color', c,...
+        plot(p(1,:), p(2,:), 'Color', c,...
+              'linewidth',2); hold on
+    end
+    for itrial = 1:length(test_data)
+        p = orth_traje_te{imax_te, foldmax_te}(itrial).data;
+        c = orth_traje_te{imax_te, foldmax_te}(itrial).epochColors;
+        subplot(2,3,[1 2 4 5]), grid on
+        plot(p(1,:), p(2,:), 'Color', 0.5*c,...
               'linewidth',2); hold on
     end
     xlabel('Eigenvector 1')
@@ -218,23 +236,50 @@ for cnt = 1: cells - 15
     mean_mse = mean(mse,2);
     plot(mean_mse,'linewidth',2, 'linestyle','-.'), hold on
     plot(mse)
-    plot(imax, mean_mse(imax),'r*', 'markersize',10)
+    plot(imax_te, mean_mse(imax_te),'r*', 'markersize',10)
     xlabel('Latent Dimension')
     ylabel('Mean Sqaure Error (LNO)')
 
     % LogLike
     subplot(2,3,6)
-    mean_like = mean(like,2);
-    plot(mean_like,'linewidth',2, 'linestyle','-.'), hold on
-    plot(like)
-    plot(imax, mean_like(imax),'r*', 'markersize',10)
+    mean_ll_test  = mean(ll_test,2);
+    mean_ll_train = mean(ll_train,2);
+    offset_te = mean(mean_ll_test);
+    offset_tr = mean(mean_ll_train);
+    plot(dims,mean_ll_test-offset_te,'linewidth',2, 'linestyle','-.', 'color','k'), hold on
+    plot(dims,mean_ll_train-offset_tr,'linewidth',2, 'linestyle','-.', 'color','b')
+    plot(dims,ll_test-offset_te,'k')
+    plot(dims,ll_train-offset_tr,'b')
+    plot(imax_te, mean_ll_test(imax_te)-offset_te,'k*', 'markersize',10)
+    plot(imax_tr, mean_ll_train(imax_tr)-offset_tr,'bs', 'markersize',10)
     xlabel('Latent Dimension')
     ylabel('Log Likelihood')
+    title('Train','color','b')
+    box off
     namePNG = sprintf('Results/i01_maze06.002_cells_%d', yDim);
     print(gcf,[basepath namePNG],'-dpng')
-    savefig(gcf, [basepath namePNG '.fig'])
     
-end
+    figure(cnt + 1)
+    numDim = 7; % 9 latent variables
+    til = sprintf('9 Latent Variables');
+    annotation('textbox', [0 0.9 1 0.1], ...
+        'String', til, ...
+        'EdgeColor', 'none', ...
+        'HorizontalAlignment', 'center',...
+        'Fontsize',18)
+    set(gcf,'color', 'w', 'position', [100 100 1400 700])
+    time = linspace(0, window, T); % from he extraction program
+    F    = orth_traje_tr{numDim, foldmax_tr};
+    for l= 1:length(F)
+       for v = 1:dims(numDim)
+           subplot(3, 3, v)
+           plot(time, F(l).data(v, :),'color',F(l).epochColors), hold on       
+       end
+    end
+    namePNG = sprintf('Results/i01_maze06.002_LV_%d', yDim);
+    print(gcf,[basepath namePNG],'-dpng')    
+
+    end
 
 save([basepath 'Results/i01_maze06.002_run_w' num2str(window)...
         's_results.mat'],'results')

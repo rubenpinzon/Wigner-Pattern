@@ -9,7 +9,7 @@ files = {'rat005': '/media/bigdata/i01_maze05.005/i01_maze05_MS.005_BehavElectrD
          'rat006': '/media/bigdata/i01_maze06.002/i01_maze06_MS.002_BehavElectrData.mat'}
 
 
-def get_cells(path, section=None, only_pyr=None):
+def get_cells(path, section=None, only_pyr=None, verbose=False):
     """
     Extract the spikes events from the MAT file of the HC-5 DB.
     if section is provided, then spikes are split accordingly
@@ -30,21 +30,24 @@ def get_cells(path, section=None, only_pyr=None):
     sections = np.squeeze(data['Par']['MazeSectEnterLeft'][0, 0])
     # Separate spikes by neuron number
     neuron = list()
-    for n in range(0, max(clusters)):
+    for n in range(1, max(clusters)+1):
 
-        if only_pyr and isIntern[n]:
+        if only_pyr and isIntern[n - 1]:
             continue
         spk = spikes[clusters == n]
+        if verbose: print 'neuron {}-th with {} spks'.format(n, len(spk))
 
         if section == 'Run':
             # Get intervals of interest: Section 2 to 6 that correspond to the running sections.
             # Section 1 seems to be between the running wheel and the central arm of the Maze.
             #  It is not clear the boundary thus it is avoided
+            if verbose: print 'neuron {}-th is pyramidal with {} spks'.format(n, len(spk))
+
             num_laps = len(sections)
             laps = list()
             for i in range(num_laps):
-                start_run, end_run = sections[i][1, 0], sum(sections[i][6:8, 0]) - 1
-                idx = np.where(np.logical_and(spk >= start_run, spk < end_run))
+                start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
+                idx = np.where(np.logical_and(spk >= start_run, spk <= end_run))
                 # save spike events aligned to the entering to sect 2.
                 laps.append(spk[idx] - start_run)
             neuron.append(laps)
@@ -85,16 +88,13 @@ def spike_train(spks, length=1000, threshold=0.):
     """
     n, l = np.shape(spks)
     trains = np.zeros([n, length, l])
-    c = 0
-    for cell in spks:
-        lp = 0
-        for lap in cell:
+    for icell, cell in enumerate(spks):
+        for ilap, lap in enumerate(cell):
             inside = lap[lap < length]
-            trains[c, inside, lp] = 1.
-            lp += 1
-        c += 1
+            trains[icell, inside, ilap] = 1.
+
     if threshold != 0.:
-        m = np.mean(trains.reshape([n, -1]), axis=1)*1250.
+        m = np.mean(trains.reshape([n, -1]), axis=1) * 1250.
         keep = m >= threshold
         print '{} Neurons removed with firing rate below {}'.format(sum(~keep), threshold)
         return trains[keep]
@@ -147,15 +147,15 @@ def binned(train, bin_size=0.1):
     T = int(t / (bin_size * 1250))
     y = np.zeros([q, T, laps])
     for ilap in range(laps):
-        for ibin in range(T - 1):
+        for ibin in range(T):
             bin_start, bin_end = ibin * T, (ibin + 1) * T - 1
-            y[:, ibin, ilap] = sum(train[:, bin_start:bin_end, ilap])
+            y[:, ibin, ilap] = np.sum(train[:, bin_start:bin_end, ilap], axis=1)
     return np.sqrt(y)
 
 
 y = {}
 for k, source in files.iteritems():
-    data = get_cells(source, only_pyr=True, section='Run')
+    data = get_cells(source, only_pyr=True, section='Run', verbose=True)
     # sanity check: raster one lap
     # raster([x[0] for x in data], title='{} Lap 0'.format(k))
     y = spike_train(data, length=int(3 * 1250), threshold=0.2)

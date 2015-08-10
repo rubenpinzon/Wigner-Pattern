@@ -303,7 +303,8 @@ class LoadBuszaki(object):
                     space = 0
                     for n in fr_sort[panel]:
                         fr = self.fr_smo[panel][n]
-                        if np.mean(fr) > (.5 / self.fs):
+                        if np.mean(fr) > (.2 / self.fs):
+                            fr = fr -fr.min()
                             time = np.linspace(0., len(fr)/self.fs, num=len(fr))
                             widget[panel].plot(time, fr/max(fr) + space, pen=(space, self.numN))
                         space += 1

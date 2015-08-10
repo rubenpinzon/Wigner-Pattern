@@ -105,7 +105,7 @@ def smooth_spk(train, width=0.1, plot=False, normalize=False):
     """
     import scipy.ndimage.filters as fil
 
-    ave = np.sum(train, axis=2)
+    ave = np.mean(train, axis=2)
     smo = list()
     for n in range(len(train)):
         y = fil.gaussian_filter1d(ave[n, :], sigma=width)
@@ -134,7 +134,7 @@ for k, source in files.iteritems():
     data = get_cells(source, only_pyr=True, section='Run')
     # sanity check: raster one lap
     raster([x[0] for x in data], title='{} Lap 0'.format(k))
-    y = spike_train(data, length=int(3 * 1250), )
+    y = spike_train(data, length=int(3 * 1250))
     y_smo = smooth_spk(y, width=int(0.05 * 1250), plot=True, normalize=True)
     name_file = re.findall(r'(i0\w+.\d+)', source)[0] + '_firings.npy'
-    # np.save(name_file, y_smo)
+    np.save(name_file, y_smo)

@@ -75,7 +75,7 @@ def raster(cells, title=''):
     plt.title(title)
 
 
-def spike_train(spks, length=1000):
+def spike_train(spks, length=1000, threshold=0.):
     """
     Conver spk events to matrix of spike trains (1's and 0's)
     :param spks: spike events
@@ -93,6 +93,11 @@ def spike_train(spks, length=1000):
             trains[c, inside, lp] = 1.
             lp += 1
         c += 1
+    if threshold != 0.:
+        m = np.mean(trains.reshape([n, -1]), axis=1)*1250.
+        keep = m >= threshold
+        print '{} Neurons removed with firing rate below {}'.format(sum(~keep), threshold)
+        return trains[keep]
     return trains
 
 
@@ -129,12 +134,33 @@ def smooth_spk(train, width=0.1, plot=False, normalize=False):
     return np.array(smo)
 
 
+def binned(train, bin_size=0.1):
+    """
+    Binned and square root transformed spike trains
+
+    :param train:  spike trains
+    :param bin_size: in ms
+    :return: y : spike trains binned
+    """
+    # q x (Bins * Laps)
+    q, t, laps = np.shape(train)
+    T = int(t / (bin_size * 1250))
+    y = np.zeros([q, T, laps])
+    for ilap in range(laps):
+        for ibin in range(T - 1):
+            bin_start, bin_end = ibin * T, (ibin + 1) * T - 1
+            y[:, ibin, ilap] = sum(train[:, bin_start:bin_end, ilap])
+    return np.sqrt(y)
+
+
 y = {}
 for k, source in files.iteritems():
     data = get_cells(source, only_pyr=True, section='Run')
     # sanity check: raster one lap
-    raster([x[0] for x in data], title='{} Lap 0'.format(k))
-    y = spike_train(data, length=int(3 * 1250))
-    y_smo = smooth_spk(y, width=int(0.05 * 1250), plot=True, normalize=True)
+    # raster([x[0] for x in data], title='{} Lap 0'.format(k))
+    y = spike_train(data, length=int(3 * 1250), threshold=0.2)
+    y_bin = binned(y, 0.08)
+
+    # y_smo = smooth_spk(y, width=int(0.05 * 1250), plot=True, normalize=True)
     name_file = re.findall(r'(i0\w+.\d+)', source)[0] + '_firings.npy'
-    np.save(name_file, y_smo)
+    np.save(name_file, y_bin)

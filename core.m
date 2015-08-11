@@ -75,11 +75,10 @@ SpkWheel_DH = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE,...
 %DataHigh(SpkRun_DH, 'DimReduce');
 
 %% Command based GPFA based on DataHigh Library
-% remove one neuron at random until having only 15 
-% leave two laps to test anc calculate ll_test = P(Ytest|model)
+% Check dependency of the method with the bin size
 
-bin_sizes       = 0.1; 
-dims            = 3:15; % Target latent dimensions
+bin_sizes       = 0.03 : 0.01: 0.1; 
+dims            = 3:20; % Target latent dimensions
 results(length(bin_sizes)).bin = bin_sizes(end);
 test_trials     = [1:4; 5:8; 12:15]; % one left and one right, 3 folds
 
@@ -98,19 +97,14 @@ cells           = sum(keep_neurons);
 removeCells     = randperm(cells);
 mask            = false(1,length(D));
 saveD           = D; 
+yDim            = size(D(1).data, 1);
+useSqrt         = 1; % square root tranform?    
 
-for cnt = 1: cells - 15
-    D           = saveD;     
-    % Remove a random neuron 
-    for itrial = 1:length(saveD)
-        D(itrial).data(removeCells(1:cnt),:) = [];
-    end
-    yDim        = size(D(1).data, 1);
-    
-    fprintf('Neuron %d-th removed, %d remaining\n',removeCells(cnt),...
-                                                yDim)
-    bin_width       = ceil(bin_sizes * Fs); % bin size (Seconds * Fs) = samples
-    useSqrt         = 1; % square root tranform?    
+                                            
+for ibin = 1: length(bin_sizes)
+    D           = saveD; 
+
+    bin_width       = ceil(bin_sizes(ibin) * Fs); % bin size (Seconds * Fs) = samples
     seq             = [];    
     
     %Extrat bins for one trial, since all the trials
@@ -184,27 +178,27 @@ for cnt = 1: cells - 15
             paramsGPFA{idim, ifold} = params;
             orth_traje_tr{idim, ifold} = gpfa_traj;
             orth_traje_te{idim, ifold} = traj;
-            fprintf('Dimension %d, fold %d',idim, ifold)
+            fprintf('Bin %d, Dimension %d, fold %d',1000*bin_sizes(ibin),idim, ifold)
         end        
     end
     % best dimension and best across folds
-    [a, foldmax_te] = max(sum(ll_test));
-    [a, imax_te] = max(ll_test(:,foldmax_te));
-    [a, foldmax_tr] = max(sum(ll_train));
-    [a, imax_tr] = max(ll_test(:,foldmax_tr));
+    [~, foldmax_te] = max(sum(ll_test));
+    [~, imax_te] = max(ll_test(:,foldmax_te));
+    [~, foldmax_tr] = max(sum(ll_train));
+    [~, imax_tr] = max(ll_test(:,foldmax_tr));
     
-    results(cnt).ll_test = ll_test;
-    results(cnt).ll_train = ll_train;
-    results(cnt).mse = mse;
-    results(cnt).dim = imax_te;
-    results(cnt).GPFA = paramsGPFA;
-    results(cnt).traj_tr = orth_traje_tr;
-    results(cnt).traj_te = orth_traje_te;
+    results(ibin).ll_test = ll_test;
+    results(ibin).ll_train = ll_train;
+    results(ibin).mse = mse;
+    results(ibin).dim = imax_te;
+    results(ibin).GPFA = paramsGPFA;
+    results(ibin).traj_tr = orth_traje_tr;
+    results(ibin).traj_te = orth_traje_te;
 
     % Setup figure to sumarize results
     close all
-    figure(cnt)
-    til = sprintf('Run Section With %3.1f ms bins and %2.1fs spike trains', 1000*bin, window);
+    figure(ibin)
+    til = sprintf('Run Section With %3.1f ms bins and %2.1fs spike trains', 1000*bin_sizes(ibin), window);
     annotation('textbox', [0 0.9 1 0.1], ...
         'String', til, ...
         'EdgeColor', 'none', ...
@@ -246,20 +240,20 @@ for cnt = 1: cells - 15
     mean_ll_train = mean(ll_train,2);
     offset_te = mean(mean_ll_test);
     offset_tr = mean(mean_ll_train);
-    plot(dims,mean_ll_test-offset_te,'linewidth',2, 'linestyle','-.', 'color','k'), hold on
-    plot(dims,mean_ll_train-offset_tr,'linewidth',2, 'linestyle','-.', 'color','b')
-    plot(dims,ll_test-offset_te,'k')
-    plot(dims,ll_train-offset_tr,'b')
-    plot(imax_te, mean_ll_test(imax_te)-offset_te,'k*', 'markersize',10)
-    plot(imax_tr, mean_ll_train(imax_tr)-offset_tr,'bs', 'markersize',10)
+    plot(dims,mean_ll_test,'linewidth',2, 'linestyle','-.', 'color','k'), hold on
+    plot(dims,mean_ll_train,'linewidth',2, 'linestyle','-.', 'color','b')
+    plot(dims,ll_test,'k')
+    plot(dims,ll_train,'b')
+    plot(imax_te, mean_ll_test(imax_te),'k*', 'markersize',10)
+    plot(imax_tr, mean_ll_train(imax_tr),'bs', 'markersize',10)
     xlabel('Latent Dimension')
     ylabel('Log Likelihood')
     title('Train','color','b')
     box off
-    namePNG = sprintf('Results/i01_maze06.002_cells_%d', yDim);
+    namePNG = sprintf('Results/i01_maze06.002_cells_%d', bin_sizes(ibin));
     print(gcf,[basepath namePNG],'-dpng')
     
-    figure(cnt + 1)
+    figure(ibin + 1)
     numDim = 7; % 9 latent variables
     til = sprintf('9 Latent Variables');
     annotation('textbox', [0 0.9 1 0.1], ...
@@ -276,10 +270,11 @@ for cnt = 1: cells - 15
            plot(time, F(l).data(v, :),'color',F(l).epochColors), hold on       
        end
     end
-    namePNG = sprintf('Results/i01_maze06.002_LV_%d', yDim);
+    namePNG = sprintf('Results/i01_maze06.002_LV_%d', 1000*bin_sizes(ibin));
     print(gcf,[basepath namePNG],'-dpng')    
 
-    end
+end
 
+nameFile = sprintf('Results/i01_maze06.002_results_%d', 1000*bin_sizes(ibin));
 save([basepath 'Results/i01_maze06.002_run_w' num2str(window)...
         's_results.mat'],'results')

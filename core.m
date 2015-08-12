@@ -63,7 +63,7 @@ for lap = 1:numLaps
     trial{lap}          = typetrial{obj.Laps.TrialType(laps(lap))};
     color(lap,:)        = trialcolor(obj.Laps.TrialType(laps(lap)),:);
 end
-%%
+%
 %Segment base on spatial coordinates rather than time.
 %interpolate the position to the longest time
 %the two arms of the T are mirrowed. There are in total 25 grids fo 100x100
@@ -105,36 +105,48 @@ xlabel('x')
 %script to extract the grids
 segments     = 100;
 roiDims      = [30 100]; %width and length of ROI
-connectgrids = 0;
-show         = 1;
+connectgrids = 1;
+ctrNeuron    = 30;
+show = 0;
 gridsL = get_grids(leftT, segments, connectgrids, show, roiDims);
 gridsR = get_grids(rightT, segments, connectgrids, show, roiDims);
 
 %count spikes inside grids
-figure(1), hold on
 
-for ilap = 1 %: numLaps
-   for icell = 1 %: N
+count = zeros(N, 43, numLaps); %TODO find the 43 analitically
+for ilap = 1 : numLaps
+   for icell = 1 : N
+       show = 0;
+       if icell == ctrNeuron; show = 1; figure(ilap), hold on;end
        x = X_Run_Lap{ilap,icell};
        y = Y_Run_Lap{ilap,icell};
-       count = countROIspks(x, y, gridsR, 1);
-   
+       if strcmp(trial{ilap}, 'right') || strcmp(trial{ilap}, 'errorLeft')
+          count(icell, :, ilap) = countROIspks(x, y, gridsR, show);
+       else
+          count(icell, :, ilap) = countROIspks(x, y, gridsL, show); 
+       end
+       fprintf('Counting spikes Lap %d, neuron %d\n',ilap, icell)
    end    
 end
 
-
+X_pyr = count(~isIntern,:,:);
 %%
 % Command based GPFA based on DataHigh Library
-% Check dependency of the method with the bin size
+%DataHigh(D,'DimReduce')
+bin_width = 30 ; %30mm
 
+for ilap = 1 : numLaps
+    D(ilap ).data = X_pyr(:,:,ilap);
+    D(ilap ).condition = trial{ilap}; 
+    D(ilap ).epochColors = color(ilap, :);
+end
 
 dims            = 3:20; % Target latent dimensions
 test_trials     = [1:4; 5:8; 12:15]; % one left and one right, 3 folds
 
-D               = SpkRun_DH;
-firing_thr      = 0.2 ; % Minimum firing rate find which 
+firing_thr      = 0.01 ; % Minimum firing rate find which 
                         % neurons should be kept
-m               = mean([D.data],2) * Fs;
+m               = mean([D.data],2);
 keep_neurons    = m >= firing_thr;
 fprintf('%d neurons remained with firing rate above %2.2f Hz\n',...
             sum(keep_neurons),firing_thr)
@@ -147,26 +159,6 @@ removeCells     = randperm(cells);
 mask            = false(1,length(D));
 yDim            = size(D(1).data, 1);
 useSqrt         = 1; % square root tranform?    
-
-bin_width       = ceil(bin_sizes * Fs); % bin size (Seconds * Fs) = samples
-seq             = [];    
-
-%Extrat bins for one trial, since all the trials
-%are of the same duration
-T           = floor(size(D(1).data, 2) / bin_width);
-for n = 1 : length(D)
-    seq(n).y   = nan(yDim, T);
-    for t = 1:T
-      iStart = bin_width * (t-1) + 1;
-      iEnd   = bin_width * t;
-      seq(n).y(:,t) = sum(D(n).data(:, iStart:iEnd), 2);
-    end
-    %normalization with square root transform
-    if useSqrt
-        seq(n).y = sqrt(seq(n).y);
-    end
-end
-[D.data]    = deal(seq.y);
 
 %prellocating variables
 lat         = []; % Struct for the latent variables
@@ -222,7 +214,7 @@ for idim = 1 : length(dims)
         paramsGPFA{idim, ifold} = params;
         orth_traje_tr{idim, ifold} = gpfa_traj;
         orth_traje_te{idim, ifold} = traj;
-        fprintf('Win %d, Dimension %d, fold %d',iwin, idim, ifold)
+        fprintf('Dimension %d, fold %d', idim, ifold)
     end        
 end
 % best dimension and best across folds
@@ -231,18 +223,17 @@ end
 [a, foldmax_tr] = max(sum(ll_train));
 [a, imax_tr] = max(ll_test(:,foldmax_tr));
 
-results(iwin).ll_test = ll_test;
-results(iwin).ll_train = ll_train;
-results(iwin).mse = mse;
-results(iwin).dim = imax_te;
-results(iwin).GPFA = paramsGPFA;
-results(iwin).traj_tr = orth_traje_tr;
-results(iwin).traj_te = orth_traje_te;
+results.ll_test = ll_test;
+results.ll_train = ll_train;
+results.mse = mse;
+results.dim = imax_te;
+results.GPFA = paramsGPFA;
+results.traj_tr = orth_traje_tr;
+results.traj_te = orth_traje_te;
 
 % Setup figure to sumarize results
 close all
-figure(iwin)
-til = sprintf('Run Section With %3.1f ms bins and %2.1fs spike trains', 80, window);
+til = sprintf('Spatial binning');
 annotation('textbox', [0 0.9 1 0.1], ...
     'String', til, ...
     'EdgeColor', 'none', ...
@@ -294,7 +285,7 @@ xlabel('Latent Dimension')
 ylabel('Log Likelihood')
 title('Train','color','b')
 box off
-namePNG = sprintf('Results/%s_cells_w%d',animal, window);
+namePNG = sprintf('Results/%s_cells',animal);
 print(gcf,[basepath namePNG],'-dpng')
 
 figure(iwin + 1)
@@ -318,5 +309,4 @@ namePNG = sprintf('Results/%s_LV_w%d',animal, window);
 print(gcf,[basepath namePNG],'-dpng')    
 
 
-save([basepath 'Results/' animal '_run_w' num2str(window)...
-        's_results.mat'],'results')
+save([basepath 'Results/' animal '_run_results.mat'],'results')

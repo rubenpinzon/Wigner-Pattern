@@ -9,14 +9,14 @@ figure(1)
 set(gcf,'color','w', 'position', [3378, 1, 500, 973])
 
 %window 3 secods
-load('i01_maze06.002_run_w3s_results.mat')
+load('/media/bigdata/i01_maze06.002/Results/i01_maze06.002_run_w3s_results.mat')
 % results(9)=[];%erase last cell because itnot from w=3s
 for i= 1:length(results)
     subplot(length(results),1,i)
-    [~, foldmax] = max(sum(results(i).like));
-    [~, imax] = max(results(i).like(:,foldmax));
-    meanLike = mean(results(i).like,2);
-    stdLike = std(results(i).like,0,2);
+    [~, foldmax] = max(sum(results(i).ll_test));
+    [~, imax] = max(results(i).ll_test(:,foldmax));
+    meanLike = mean(results(i).ll_test,2);
+    stdLike = std(results(i).ll_test,0,2);
     plot(meanLike), hold on, box off
     set(gca, 'ycolor', 'w')
     plot(imax, meanLike(imax), 'bo')

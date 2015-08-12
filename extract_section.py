@@ -4,6 +4,9 @@ __doc__ = 'Extract and creates a npy and txt files with the spikes events in the
 import scipy.io as sio
 import numpy as np
 import re
+from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.cross_validation import cross_val_score
+import matplotlib.pyplot as plt
 
 files = {'rat005': '/media/bigdata/i01_maze05.005/i01_maze05_MS.005_BehavElectrData.mat',
          'rat006': '/media/bigdata/i01_maze06.002/i01_maze06_MS.002_BehavElectrData.mat'}
@@ -30,7 +33,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     sections = np.squeeze(data['Par']['MazeSectEnterLeft'][0, 0])
     # Separate spikes by neuron number
     neuron = list()
-    for n in range(1, max(clusters)+1):
+    for n in range(1, max(clusters) + 1):
 
         if only_pyr and isIntern[n - 1]:
             continue
@@ -96,7 +99,7 @@ def spike_train(spks, length=1000, threshold=0.):
     if threshold != 0.:
         m = np.mean(trains.reshape([n, -1]), axis=1) * 1250.
         keep = m >= threshold
-        print '{} Neurons removed with firing rate below {}'.format(sum(~keep), threshold)
+        # print '{} Neurons removed with firing rate below {}'.format(sum(~keep), threshold)
         return trains[keep]
     return trains
 
@@ -144,23 +147,81 @@ def binned(train, bin_size=0.1):
     """
     # q x (Bins * Laps)
     q, t, laps = np.shape(train)
-    T = int(t / (bin_size * 1250))
+    bin_width = int(bin_size * 1250)
+    T = int(t / bin_width)
     y = np.zeros([q, T, laps])
     for ilap in range(laps):
         for ibin in range(T):
-            bin_start, bin_end = ibin * T, (ibin + 1) * T - 1
+            bin_start, bin_end = ibin * bin_width, (ibin + 1) * bin_width - 1
             y[:, ibin, ilap] = np.sum(train[:, bin_start:bin_end, ilap], axis=1)
-    return np.sqrt(y)
+    return y.reshape([q, -1])
 
 
-y = {}
+def compute_scores(X, n_components):
+    pca = PCA()
+    fa = FactorAnalysis()
+
+    pca_scores, fa_scores = [], []
+    for n in n_components:
+        print 'Processing dimension {}'.format(n)
+        pca.n_components = n
+        fa.n_components = n
+        pca_scores.append(np.mean(cross_val_score(pca, X)))
+        fa_scores.append(np.mean(cross_val_score(fa, X)))
+
+    return pca_scores, fa_scores
+
+
+def zscore(X):
+    return (X - np.mean(X, axis=1)[:, np.newaxis]) / np.std(X, axis=1)[:, np.newaxis]
+
+
+def squareT(X):
+    return np.sqrt(X)
+
+
+def minmax(X):
+    return (X - np.min(X, axis=1)[:, np.newaxis]) / (np.max(X, axis=1) - np.min(X, axis=1))[:, np.newaxis]
+
+
+max_dims = 40
+n_components = np.arange(0, max_dims, 2)  # options for n_components
+
 for k, source in files.iteritems():
-    data = get_cells(source, only_pyr=True, section='Run', verbose=True)
+    data = get_cells(source, only_pyr=True, section='Run')
     # sanity check: raster one lap
     # raster([x[0] for x in data], title='{} Lap 0'.format(k))
-    y = spike_train(data, length=int(3 * 1250), threshold=0.2)
-    y_bin = binned(y, 0.08)
+    y = spike_train(data, length=int(3.0 * 1250), threshold=0.2)
+    X = squareT(binned(y, 0.1))
 
     # y_smo = smooth_spk(y, width=int(0.05 * 1250), plot=True, normalize=True)
     name_file = re.findall(r'(i0\w+.\d+)', source)[0] + '_firings.npy'
-    np.save(name_file, y_bin)
+    # np.save(name_file, y_bin)
+
+    # ###########################EID with PCA and FA#################
+
+    pca_scores, fa_scores = compute_scores(X.T, n_components)
+    n_components_pca = n_components[np.argmax(pca_scores)]
+    n_components_fa = n_components[np.argmax(fa_scores)]
+    pca = PCA(n_components='mle')
+    pca.fit(X.T)
+    n_components_pca_mle = pca.n_components_
+
+    print("best n_components by PCA CV = %d" % n_components_pca)
+    print("best n_components by FactorAnalysis CV = %d" % n_components_fa)
+    print("best n_components by PCA MLE = %d" % n_components_pca_mle)
+
+    plt.figure()
+    plt.plot(n_components, pca_scores, 'b', label='PCA scores')
+    plt.plot(n_components, fa_scores, 'r', label='FA scores')
+    plt.axvline(n_components_pca, color='b',
+                label='PCA CV: %d' % n_components_pca, linestyle='--')
+    plt.axvline(n_components_fa, color='r',
+                label='FactorAnalysis CV: %d' % n_components_fa, linestyle='--')
+    plt.axvline(n_components_pca_mle, color='k',
+                label='PCA MLE: %d' % n_components_pca_mle, linestyle='--')
+    plt.legend(loc='lower right')
+    plt.xlabel('num. of components')
+    plt.ylabel('CV scores')
+    plt.title(k)
+plt.show()

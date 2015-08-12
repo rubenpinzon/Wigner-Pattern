@@ -68,7 +68,6 @@ end
 %interpolate the position to the longest time
 %the two arms of the T are mirrowed. There are in total 25 grids fo 100x100
 
-roiDims = [100 100]; %width and length of ROI
 longest = max(length_run)*Fs;
 Starpos = [XT(int_at_maze(:,1)), YT(int_at_maze(:,1))];
 Endpos  = [XT(int_at_maze(:,2)), YT(int_at_maze(:,2))];
@@ -80,19 +79,13 @@ x       = []; y = [];
 grid_spks = zeros(N, numGrids, numLaps); %this function will be changed
 
 for ilap = 1 : numLaps
-    time    = linspace(0,length_run(ilap),longest);    
+    time    = linspace(0,length_run(ilap),longest); 
+    %real animal position and interporaltion
     x       = XT(int_at_maze(ilap,1):int_at_maze(ilap,2));
     y       = YT(int_at_maze(ilap,1):int_at_maze(ilap,2));   
     xi      = spline(linspace(0,length_run(ilap),length(x)),x,time);
-    yi      = spline(linspace(0,length_run(ilap),length(y)),y,time);
+    yi      = spline(linspace(0,length_run(ilap),length(y)),y,time);    
     
-     %count spikes in the grids of the central arm
-    for icell = 1 : N
-        Xpk = X_Run_Lap{ilap,icell};
-        Ypk = Y_Run_Lap{ilap,icell};
-        inside = countROIspks(Xpk, Ypk, grids, roiDims, 1);
-        grid_spks(icell, : , ilap) = inside;
-    end
     if strcmp(trial{ilap}, 'right') || strcmp(trial{ilap}, 'errorLeft')
         xr = xr + xi; yr = yr + yi; r  = r + 1;
         %count spikes in the grids of the right arm        
@@ -103,20 +96,40 @@ for ilap = 1 : numLaps
     for icell = 1 : N
         plot(X_Run_Lap{ilap,icell}, Y_Run_Lap{ilap,icell},'x')
     end
-    %data for GPFA
-    D(ilap).data = grid_spks(:,:,ilap);
-    D(ilap).condition = trial{ilap}; 
-    D(ilap).epochColors = color(ilap, :);
+
 end
-xr      = xr./r;
-yr      = yr./r;
+leftT= [xr./r; yr./r]';
 xl      = xl./l;
 yl      = yl./l;
-plot(xr, yr,'k','linewidth', 2)
+plot(leftT(:,1), leftT(:,2),'k','linewidth', 2)
 plot(xl, yl,'k','linewidth', 2), hold on
-countROIspks(0, 0, grids, roiDims, 1);
 title(sprintf('Animal %s',animal))
 xlabel('x')
+%script to extract the grids
+segments = 100;
+deltaX   = diff(leftT(1:segments:end,1));
+deltaY   = diff(leftT(1:segments:end,2));
+leftT    = leftT(1:segments:end,:);
+roiDims  = [3 25]; %width and length of ROI
+
+angle    = atan2(deltaY,deltaX);
+
+for ibin = 1 : length(deltaX)-1
+    
+    plot(leftT(ibin:ibin+1,1),leftT(ibin:ibin+1,2),'o-'), hold on
+
+    rotation = [cos(angle(ibin)) -sin(angle(ibin)) 
+              sin(angle(ibin))  cos(angle(ibin))];
+    translation = repmat([sum(leftT(ibin:ibin+1,1))/2; sum(leftT(ibin:ibin+1,2))/2],1,5);      
+    ROI    = rotation*getROI(0, 0, roiDims)' + translation;
+    if ibin >1
+        ROI(:,[4, 3]) = oldROI;
+    end
+    plot(ROI(1,:),ROI(2,:)) 
+    oldROI = ROI(:,1:2);
+
+    %count spikes in the grids of the central arm
+end
 
 %%
 % Command based GPFA based on DataHigh Library

@@ -32,7 +32,7 @@ def place_field(pos, covariance, firing_rate=10, baseline=1):
     return pdf
 
 
-def setup(num_cells=100):
+def setup(num_objs=100):
     """
     Setup an arena with the same dimensions as Eva's experiment (100x120) and standard place fields
     modeled as Gaussians with random covariances. The arena is a T maze.
@@ -46,11 +46,11 @@ def setup(num_cells=100):
     ymax = 100
     pfields = list()
     centers = list()
-    for f in range(num_cells):
-        center = [random.normal(xmax / 2, xmax / 2), random.normal(xmax / 2, xmax / 2)]
-        covariance = random.normal(loc=50., scale=10., size=2)
-        pfields.append(place_field(center, covariance))
-        centers.append(center)
+    for f in range(num_objs):
+        origin = [random.normal(xmax / 2, xmax / 2), random.normal(xmax / 2, xmax / 2)]
+        covariance = random.normal(loc=50., scale=15., size=2)
+        pfields.append(place_field(origin, covariance))
+        centers.append(origin)
     delta = 0.1
     x = arange(0, xmax, delta)
     y = arange(0, ymax, delta)
@@ -59,14 +59,14 @@ def setup(num_cells=100):
     return pfields, X, Y, centers
 
 
-def simulate_spikes(p_fields, rx, ry):
+def simulate_spikes(tuning_curve, rx, ry):
     """
     Compute firing rate for each neuron given place field center
     and sample number of observed spikes in one time unit.
     """
     rates = []
     obs_spikes = []
-    for n, pfield in enumerate(p_fields):
+    for n, pfield in enumerate(tuning_curve):
         rate = pfield((rx, ry))
         spikes = poisson.rvs(rate)
         rates.append(rate)
@@ -74,49 +74,72 @@ def simulate_spikes(p_fields, rx, ry):
     return rates, obs_spikes
 
 
-def generate_position(speed=5.):
-    """
-    Simulates the position of the animal in the maze given a constant speed
-    Alternates between left and right arms of the "T" maze
+def extract_cells(path, radius=10.):
+    """ Define a radius from the path inside which place fields are accepted
+    # so that any place_field' center within a distance <= r will be included."""
+    num_bins = len(path)
 
-    :param: speed: Speed at which the animal explore the arena.
-    :return: x, y position of the rate at given speed
-    """
-
-
-# def close_fields(centers, path):
-
-
-if __name__ == '__main__':
-
-    p_fields, ax, ay, centers = setup(500)
-    # Show place fields distribution
-    fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
-    ax2 = fig.add_axes([0.1, 0.1, 0.8, 0.8])
-    pos = dstack((ax, ay))
-
-    path_left = loadtxt('stereotypicalLEft.txt')[::40, :] / 10
-    path_right = loadtxt('stereotypicalRight.txt')[::40, :] / 10
-
-    plt.plot(path_left[:, 0], path_left[:, 1], linewidth=3.0, color='k')
-    plt.plot(path_right[:, 0], path_right[:, 1], linewidth=3.0, color='k')
-    # Define a radius from the path inside which place fields are accepted
-    # so that any place_field' center within a distance <= r will be included.
-    radius = 10.
     # compute distance to each center
     cell_idx = list()
     for idx, center in enumerate(centers):
-        for p in range(len(path_right)):
+        for p in range(num_bins):
             distL = sqrt(sum((center - path_left[p, :]) ** 2))
             distR = sqrt(sum((center - path_right[p, :]) ** 2))
             if distL <= radius or distR <= radius:
                 cell_idx.append(idx)
                 break
+    cells = [p_fields[i] for i in cell_idx]
+    num_cells = shape(cells)[0]
+    return num_cells, cells, num_bins
 
-    cell_selected = [p_fields[i] for i in cell_idx]
-    print '{} cells created'.format(shape(cell_selected)[0])
-    for p in cell_selected:
-        ax2.contour(ax, ay, p(pos))
+
+def sample(path, cells, verbose=False):
+    spikes = list()
+    for b, pos in enumerate(path):
+        rates, obs_spikes = simulate_spikes(cells, pos[0], pos[1])
+        spikes.append(obs_spikes)
+        if verbose:
+            print 'Number of spikes observed in bin {}-th, {}'.format(b, sum(obs_spikes))
+
+    return array(spikes)
+
+
+if __name__ == '__main__':
+    show = False
+    p_fields, ax, ay, centers = setup(500)
+    # Show place fields distribution
+
+    pos = dstack((ax, ay))
+
+    path_left = loadtxt('stereotypicalLEft.txt')[::100, :] / 10
+    path_right = loadtxt('stereotypicalRight.txt')[::100, :] / 10
+
+    # Sample spikes from a given path
+    num_cells, cells, num_bins = extract_cells(path_left)
+
+    print '{} cells created'.format(num_cells)
+
+    if show:
+        fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
+        ax2 = fig.add_axes([0.1, 0.1, 0.8, 0.8])
+        for p in cells:
+            ax2.contour(ax, ay, p(pos))
+        plt.plot(path_left[:, 0], path_left[:, 1], linewidth=3.0, color='k')
+        plt.plot(path_right[:, 0], path_right[:, 1], linewidth=3.0, color='k')
+
     # Stereotypical path taken from a real animal
+    # TODO: below spaghetti must be coded
+    spikesleft = sample(path_left, cells)
+    spikesright = sample(path_right, cells)
 
     plt.show()
+    savetxt('synthetic_spikesleft.txt', spikesleft)
+    savetxt('synthetic_spikesright.txt', spikesright)
+
+    spikesleft = sample(path_left, cells)
+    spikesright = sample(path_right, cells)
+
+    plt.show()
+    savetxt('synthetic_spikesleft2.txt', spikesleft)
+    savetxt('synthetic_spikesright2.txt', spikesright)
+    # TODO: use the trajectories of the real animal to sample from the synthetic cells

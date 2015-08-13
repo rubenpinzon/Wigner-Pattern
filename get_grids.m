@@ -13,21 +13,32 @@ function grids = get_grids(X, segments, connect, show, roiDims)
 %
 %Ruben Pinzon
 %version 1.0@2015
+    deltaX   = diff(X(:,1));
+    deltaY   = diff(X(:,2));
+    accdist  = cumsum(sqrt(deltaX.^2 + deltaY.^2));
+    accdist  = accdist - accdist(1);
+    bin_mm   = accdist(end)/(segments+1);
+       
+    
 
-    deltaX   = diff(X(1:segments:end,1));
-    deltaY   = diff(X(1:segments:end,2));
-    X        = X(1:segments:end,:);
-    angle    = atan2(deltaY,deltaX);
-
-    grids    = zeros(2, 5, length(deltaX)-1);
-    for ibin = 1 : length(deltaX)-1
-
-        plot(X(ibin:ibin+1,1),X(ibin:ibin+1,2),'o-'), hold on
-
-        rotation = [cos(angle(ibin)) -sin(angle(ibin)) 
-                  sin(angle(ibin))  cos(angle(ibin))];
-        translation = repmat([sum(X(ibin:ibin+1,1))/2; sum(X(ibin:ibin+1,2))/2],1,5);      
+    grids    = zeros(2, 5, segments);
+    border_old = 1;
+    for ibin = 1 : segments
+        border_new = find(diff(accdist <= ibin*bin_mm));
+        plot(X([border_old, border_new],1),X([border_old, border_new],2),'o-'), hold on
+        
+        deltaXX = X(border_new,1) - X(border_old,1);
+        deltaYY = X(border_new,2) - X(border_old,2);
+        offsetX  = sum(X([border_old border_new],1))/2;
+        offsetY  = sum(X([border_old border_new],2))/2;
+        angle    = atan2(deltaYY,deltaXX);
+        
+        rotation = [cos(angle) -sin(angle) 
+                  sin(angle)  cos(angle)];
+        translation = repmat([offsetX; offsetY],1,5);      
         ROI    = rotation*getROI(0, 0, roiDims)' + translation;
+%         ROI    = rotation*ROI' + translation;
+
         if ibin > 1 && connect
             ROI(:,[4, 3]) = oldROI;
         end
@@ -36,6 +47,7 @@ function grids = get_grids(X, segments, connect, show, roiDims)
             plot(ROI(1,:),ROI(2,:), 'r')
         end
         oldROI = ROI(:,1:2);
+        border_old = border_new;
         %count spikes in the grids of the central arm
     end
 end

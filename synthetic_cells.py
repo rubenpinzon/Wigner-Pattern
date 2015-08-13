@@ -45,16 +45,18 @@ def setup(num_cells=100):
     xmax = 100
     ymax = 100
     pfields = list()
+    centers = list()
     for f in range(num_cells):
         center = [random.normal(xmax / 2, xmax / 2), random.normal(xmax / 2, xmax / 2)]
         covariance = random.normal(loc=50., scale=10., size=2)
         pfields.append(place_field(center, covariance))
+        centers.append(center)
     delta = 0.1
     x = arange(0, xmax, delta)
     y = arange(0, ymax, delta)
     X, Y = meshgrid(x, y)
 
-    return pfields, X, Y
+    return pfields, X, Y, centers
 
 
 def simulate_spikes(p_fields, rx, ry):
@@ -82,13 +84,39 @@ def generate_position(speed=5.):
     """
 
 
-# if __name__ == '__main__':
+# def close_fields(centers, path):
 
-p_fields, ax, ay = setup(100)
-# Show place fields distribution
-fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
-ax2 = fig.add_axes([0.1, 0.1, 0.8, 0.8])
-pos = dstack((ax, ay))
-for p in p_fields:
-    ax2.contour(ax, ay, p(pos))
-plt.show()
+
+if __name__ == '__main__':
+
+    p_fields, ax, ay, centers = setup(500)
+    # Show place fields distribution
+    fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
+    ax2 = fig.add_axes([0.1, 0.1, 0.8, 0.8])
+    pos = dstack((ax, ay))
+
+    path_left = loadtxt('stereotypicalLEft.txt')[::40, :] / 10
+    path_right = loadtxt('stereotypicalRight.txt')[::40, :] / 10
+
+    plt.plot(path_left[:, 0], path_left[:, 1], linewidth=3.0, color='k')
+    plt.plot(path_right[:, 0], path_right[:, 1], linewidth=3.0, color='k')
+    # Define a radius from the path inside which place fields are accepted
+    # so that any place_field' center within a distance <= r will be included.
+    radius = 10.
+    # compute distance to each center
+    cell_idx = list()
+    for idx, center in enumerate(centers):
+        for p in range(len(path_right)):
+            distL = sqrt(sum((center - path_left[p, :]) ** 2))
+            distR = sqrt(sum((center - path_right[p, :]) ** 2))
+            if distL <= radius or distR <= radius:
+                cell_idx.append(idx)
+                break
+
+    cell_selected = [p_fields[i] for i in cell_idx]
+    print '{} cells created'.format(shape(cell_selected)[0])
+    for p in cell_selected:
+        ax2.contour(ax, ay, p(pos))
+    # Stereotypical path taken from a real animal
+
+    plt.show()

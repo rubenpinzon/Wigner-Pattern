@@ -35,9 +35,7 @@ def place_field(pos, covariance, firing_rate=10, baseline=1):
 def setup(num_cells=100):
     """
     Setup an arena with the same dimensions as Eva's experiment (100x120) and standard place fields
-    modeled as Gaussians with random covariances. The arena is a T maze. Y is divided in five regions
-    0-20%, 20-40%, 40-60%, 60-80%, 80-100%, where values in the second and fourth regions are
-    forbidden to represent the walls of the T maze.
+    modeled as Gaussians with random covariances. The arena is a T maze.
 
     :param samples  Number of samples from the X-Y length.
                     Determines the number of cells as X*Y/(samples**2)
@@ -45,21 +43,18 @@ def setup(num_cells=100):
     """
     # TODO: there is one section in the maze that is not included, the head of the "T". Should be included
     xmax = 100
-    ymax = [(5, 15), (45, 55), (85, 95)]
-    x_center = random.random_integers(0, xmax, num_cells / 10)
-    y_center = hstack([random.random_integers(i[0], i[1], num_cells / 3) for i in ymax])
-    centers = [(x, y) for x in x_center for y in y_center]
-    # take num_cells from the big vector of centers in pfield
-    idx = random.permutation(len(centers))
-    pfield_centers = [centers[i] for i in idx[:num_cells]]
-    pfields = [place_field(array(pos), random.normal(loc=30., scale=5., size=2)) for pos in pfield_centers]
-
+    ymax = 100
+    pfields = list()
+    for f in range(num_cells):
+        center = [random.normal(xmax / 2, xmax / 2), random.normal(xmax / 2, xmax / 2)]
+        covariance = random.normal(loc=50., scale=10., size=2)
+        pfields.append(place_field(center, covariance))
     delta = 0.1
     x = arange(0, xmax, delta)
-    y = arange(0, ymax[-1][1], delta)
+    y = arange(0, ymax, delta)
     X, Y = meshgrid(x, y)
 
-    return pfields, X, Y, array(pfield_centers)
+    return pfields, X, Y
 
 
 def simulate_spikes(p_fields, rx, ry):
@@ -87,10 +82,9 @@ def generate_position(speed=5.):
     """
 
 
-
 # if __name__ == '__main__':
 
-p_fields, ax, ay, centers = setup(100)
+p_fields, ax, ay = setup(100)
 # Show place fields distribution
 fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
 ax2 = fig.add_axes([0.1, 0.1, 0.8, 0.8])

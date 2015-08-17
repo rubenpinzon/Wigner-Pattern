@@ -99,8 +99,8 @@ end
 % Convert to DataHigh format without segmenting, that is, using the whole
 % time that the animal spent in the runing section. This implies laps with
 % different lenghts
-% MaxTimeE = floor(Fs * min(run_len) * ones(1, numLaps));
-MaxTimeE = floor(Fs * run_len);
+MaxTimeE = floor(Fs * min(run_len) * ones(1, numLaps));
+% MaxTimeE = floor(Fs * run_len);
 onlyCorrectTrial = true;
 %Data processed for datahigh without interneuorns
 SpkRun_DH = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...

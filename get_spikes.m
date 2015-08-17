@@ -1,4 +1,9 @@
 function varargout = get_spikes(varargin)
+% GET_SPIKES extract variables per neuron per lap
+%
+%   [spk, spk_lap] = get_spikes(clusters, Spike, laps)
+%   If more inputs ar provided, then
+%   [spk, spk_lap, X, X_lap] = get_spikes(clusters, Spike, laps, X)
 
 clusters = varargin{1};
 spikes = varargin{2};
@@ -12,7 +17,7 @@ for j=1:max(clusters) %for each neuron
    for v = 1 : exVars
       eval(['aux' num2str(v) '{j} = varargin{v+3}(clusters==j);']); 
    end
-   for k=1:length(laps)-1
+   for k=1:length(laps)-1 % for each lap
         index = spk_per_neuron{j}>=laps(k) & spk_per_neuron{j}<laps(k+1);
         spk_per_lap{k,j} = spk_per_neuron{j}(index);
         for v = 1 : exVars

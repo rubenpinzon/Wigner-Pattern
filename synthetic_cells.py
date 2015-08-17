@@ -48,7 +48,7 @@ def setup(num_objs=100):
     centers = list()
     for f in range(num_objs):
         origin = [random.normal(xmax / 2, xmax / 2), random.normal(xmax / 2, xmax / 2)]
-        covariance = random.normal(loc=50., scale=15., size=2)
+        covariance = random.normal(loc=150., scale=10., size=2)
         pfields.append(place_field(origin, covariance))
         centers.append(origin)
     delta = 0.1
@@ -105,7 +105,8 @@ def sample(path, cells, verbose=False):
 
 
 if __name__ == '__main__':
-    show = False
+    show = True
+
     p_fields, ax, ay, centers = setup(500)
     # Show place fields distribution
 
@@ -116,7 +117,6 @@ if __name__ == '__main__':
 
     # Sample spikes from a given path
     num_cells, cells, num_bins = extract_cells(path_left)
-
     print '{} cells created'.format(num_cells)
 
     if show:

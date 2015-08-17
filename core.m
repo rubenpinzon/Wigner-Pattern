@@ -3,8 +3,10 @@
 
 clc, close all; clear all;
 
-basepath        = '/media/bigdata/i01_maze06.002/';
-animal          = 'i01_maze06_MS.002';
+basepath        = '/media/bigdata/i01_maze05.005/';
+animal          = 'i01_maze05_MS.005';
+% basepath        = '/media/bigdata/i01_maze06.002/';
+% animal          = 'i01_maze06_MS.002';
 obj             = load([basepath animal '_BehavElectrData.mat']);
 clusters        = obj.Spike.totclu;
 laps            = obj.Laps.StartLaps(obj.Laps.StartLaps~=0); %@1250 Hz
@@ -75,7 +77,7 @@ xl      = zeros(1,longest) ;yl = zeros(1,longest); %vectors to calculate the mea
 xr      = zeros(1,longest) ;yr = zeros(1,longest); 
 r       = 0;l = 0;
 x       = []; y = [];
-
+failed_trial = [];
 for ilap = 1 : numLaps
     time    = linspace(0,length_run(ilap),longest); 
     %real animal position and interporaltion
@@ -83,11 +85,13 @@ for ilap = 1 : numLaps
     y       = YT(int_at_maze(ilap,1):int_at_maze(ilap,2));   
     xi      = spline(linspace(0,length_run(ilap),length(x)),x,time);
     yi      = spline(linspace(0,length_run(ilap),length(y)),y,time);        
-    if strcmp(trial{ilap}, 'right') || strcmp(trial{ilap}, 'errorLeft')
+    if strcmp(trial{ilap}, 'right') 
         xr = xr + xi; yr = yr + yi; r  = r + 1;
         %count spikes in the grids of the right arm        
-    else
+    elseif strcmp(trial{ilap}, 'left') 
         xl  = xl + xi;yl = yl + yi; l  = l + 1;       
+    else
+        failed_trial =[ failed_trial ilap];
     end
     plot(x, y), hold on
     for icell = 1 : N
@@ -103,17 +107,17 @@ plot(rightT(:,1), rightT(:,2),'k','linewidth', 2),
 title(sprintf('Animal %s',animal))
 xlabel('x')
 %script to extract the grids
-segments     = 100;
-roiDims      = [30 100]; %width and length of ROI
+segments     = 40;
+roiDims      = [20 200]; %width and length of ROI
 connectgrids = 1;
-ctrNeuron    = 30;
-show = 0;
+ctrNeuron    = 0;
+show = 1;
 gridsL = get_grids(leftT, segments, connectgrids, show, roiDims);
 gridsR = get_grids(rightT, segments, connectgrids, show, roiDims);
 
 %count spikes inside grids
 
-count = zeros(N, 43, numLaps); %TODO find the 43 analitically
+count = zeros(N, segments, numLaps); %TODO find the 43 analitically
 for ilap = 1 : numLaps
    for icell = 1 : N
        show = 0;
@@ -125,26 +129,28 @@ for ilap = 1 : numLaps
        else
           count(icell, :, ilap) = countROIspks(x, y, gridsL, show); 
        end
-       fprintf('Counting spikes Lap %d, neuron %d\n',ilap, icell)
+       fprintf('Counting spikes Lap %d, neuron %d, %d spks \n',ilap, icell, sum(count(icell, :, ilap)))
    end    
 end
-
 X_pyr = count(~isIntern,:,:);
-%%
+%% Get data in the format
 % Command based GPFA based on DataHigh Library
-%DataHigh(D,'DimReduce')
+%
 bin_width = 30 ; %30mm
-
-for ilap = 1 : numLaps
-    D(ilap ).data = X_pyr(:,:,ilap);
-    D(ilap ).condition = trial{ilap}; 
-    D(ilap ).epochColors = color(ilap, :);
+%remove failed trails
+laps_success = 1:numLaps;
+laps_success(failed_trial) = [];
+for ilap = 1 : numel(laps_success)
+    D(ilap).data = X_pyr(:,:,laps_success(ilap));
+    D(ilap).condition = trial{laps_success(ilap)}; 
+    D(ilap).epochColors = color(laps_success(ilap), :);
+    D(ilap).trialId = laps_success(ilap);
+    D(ilap).T = size(D(1).data,2);
 end
 
 dims            = 3:20; % Target latent dimensions
-test_trials     = [1:4; 5:8; 12:15]; % one left and one right, 3 folds
 
-firing_thr      = 0.01 ; % Minimum firing rate find which 
+firing_thr      = 0.04 ; % Minimum firing rate find which 
                         % neurons should be kept
 m               = mean([D.data],2);
 keep_neurons    = m >= firing_thr;
@@ -154,6 +160,10 @@ fprintf('%d neurons remained with firing rate above %2.2f Hz\n',...
 for itrial = 1:length(D)
     D(itrial).data = D(itrial).data(keep_neurons,:);
 end
+%Prepare data for the datahigh library
+[D.y] = D.data;
+
+%% DataHigh(D,'DimReduce')
 cells           = sum(keep_neurons);
 removeCells     = randperm(cells);
 mask            = false(1,length(D));
@@ -161,6 +171,7 @@ yDim            = size(D(1).data, 1);
 useSqrt         = 1; % square root tranform?    
 
 %prellocating variables
+test_trials     = [1:4; 5:8; 12:15]; % one left and one right, 3 folds
 lat         = []; % Struct for the latent variables
 ll_te       = 0;  % these store the likelihood
 ll_tr       = 0;  % these store the likelihood
@@ -172,13 +183,6 @@ mse         = zeros(length(dims),folds); % and mse
 paramsGPFA  = cell(length(dims), folds);
 orth_traje_tr  = cell(length(dims), folds); %training orth_traje
 orth_traje_te  = cell(length(dims), folds); %training orth_traje
-
-%Prepare data for the datahigh library
-[D.y] = D.data;
-for i=1:length(D);
-    D(i).trialId = i;
-    D(i).T = size(D(i).data,2);
-end
 
 for idim = 1 : length(dims)
     for ifold = 1 : folds  % three-fold cross-validation        

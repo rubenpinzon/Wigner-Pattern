@@ -5,8 +5,8 @@ clc, close all; clear all;
 
 basepath        = '/media/bigdata/i01_maze05.005/';
 animal          = 'i01_maze05_MS.005';
-% basepath        = '/media/bigdata/i01_maze06.002/';
-% animal          = 'i01_maze06_MS.002';
+basepath        = '/media/bigdata/i01_maze06.002/';
+animal          = 'i01_maze06_MS.002';
 obj             = load([basepath animal '_BehavElectrData.mat']);
 clusters        = obj.Spike.totclu;
 laps            = obj.Laps.StartLaps(obj.Laps.StartLaps~=0); %@1250 Hz
@@ -76,35 +76,15 @@ end
 segments     = 40;
 roiDims      = [20 200]; %width and length of ROI
 connectgrids = 1;
-ctrNeuron    = 0;
-show         = 1;
-gridsL = get_grids(leftT, segments, connectgrids, show, roiDims);
-gridsR = get_grids(rightT, segments, connectgrids, show, roiDims);
+ctrNeuron    = 10; % neuron to plot just see things are going OK
+show         = 0;
 
-%count spikes inside grids
+%count spikes inside grids and get normalized firing rate
+[rate, duration] = normFiringRate(XT, YT, X_Run_Lap, Y_Run_Lap, int_at_maze,...
+                      segments, show, connectgrids, roiDims, leftT,...
+                      rightT, ctrNeuron, trial);
 
-count = zeros(N, segments, numLaps); %TODO find the 43 analitically
-for ilap = 1 : numLaps
-   xt   = XT(int_at_maze(ilap,1):int_at_maze(ilap,2));
-   yt   = YT(int_at_maze(ilap,1):int_at_maze(ilap,2));
-   for icell = 1 : N
-       show = 0;
-       if icell == ctrNeuron; show = 1; figure(ilap), hold on;end
-       
-       x    = X_Run_Lap{ilap,icell};
-       y    = Y_Run_Lap{ilap,icell};
-      
-       if strcmp(trial{ilap}, 'right') || strcmp(trial{ilap}, 'errorLeft')
-           [cnt, duration]= countROIspks(x, y, xt, yt, gridsR, show);
-       else
-           [cnt, duration] = countROIspks(x, y, xt, yt, gridsL, show); 
-       end
-       %time normalization
-       count(icell, :, ilap) = cnt./(duration);
-       fprintf('Counting => Lap %d, cell %d, norm. f. rate %3.3f \n',ilap, icell, sum(count(icell, :, ilap)))
-   end    
-end
-X_pyr = count(~isIntern,:,:);
+X_pyr = Fs*rate(~isIntern,:,:);
 %% Get data in the format
 % Command based GPFA based on DataHigh Library
 %
@@ -122,7 +102,7 @@ end
 
 dims            = 3:20; % Target latent dimensions
 
-firing_thr      = 0.04 ; % Minimum firing rate find which 
+firing_thr      = 0.5; % Minimum norm. firing rate which 
                         % neurons should be kept
 m               = mean([D.data],2);
 keep_neurons    = m >= firing_thr;

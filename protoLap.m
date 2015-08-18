@@ -7,12 +7,9 @@ function [leftT, rightT, failed_trial] = protoLap(XT, YT, length_run, trial, X_R
 numLaps = length(length_run);
 N       = size(X_Run_Lap,2);
 longest = max(length_run)*Fs;
-Starpos = [XT(int_at_maze(:,1)), YT(int_at_maze(:,1))];
-Endpos  = [XT(int_at_maze(:,2)), YT(int_at_maze(:,2))];
 xl      = zeros(1,longest) ;yl = zeros(1,longest); %vectors to calculate the mean trajectory
 xr      = zeros(1,longest) ;yr = zeros(1,longest); 
 r       = 0;l = 0;
-x       = []; y = [];
 
 failed_trial = [];
 for ilap = 1 : numLaps
@@ -28,7 +25,7 @@ for ilap = 1 : numLaps
     elseif strcmp(trial{ilap}, 'left') 
         xl  = xl + xi;yl = yl + yi; l  = l + 1;       
     else
-        failed_trial =[failed_trial ilap];
+        failed_trial =[failed_trial ilap]; %#ok<AGROW>
     end
     plot(x, y), hold on
     for icell = 1 : N

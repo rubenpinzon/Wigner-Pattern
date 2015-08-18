@@ -1,4 +1,4 @@
-function count = countROIspks(x, y, grid, show)
+function [count, duration]= countROIspks(x, y, xt, yt, grid, show)
     %COUNTROISPKS Counts the spikes inside a grid partition
     %   
     %   COUNT = countROIspks(x, y, grid, show)
@@ -6,24 +6,34 @@ function count = countROIspks(x, y, grid, show)
     %           grid with dimension 2 x 5 x S, containes the
     %           partitions of the area in S segments. Show enables the
     %           ploting of the countign and ROI regions along with the spks
+    %           xt, yt are the spatial coordinates of the animal
+    %           to calculate the time spent on each
+    %           bin.
     %
     %Rube Pinzon
     %version 1.0 2015
     
-    xcopy = x;
-    ycopy = y;
-    count = [];
-    for iroi = 1 : size(grid,3)
+    xcopy   = x;
+    ycopy   = y;
+    numROIs = size(grid,3);
+    count   = zeros(1, numROIs);
+    duration    = zeros(1, numROIs);
+    for iroi = 1 : numROIs
         ROI = grid(:,:,iroi);
         insideIndex = inpolygon(x,y,ROI(1,:),ROI(2, :));
+        
+        duration(iroi) = sum(inpolygon(xt,yt,ROI(1,:),ROI(2, :)));
+        
         %remove counted spikes
         x(insideIndex) = [];
         y(insideIndex) = [];
         count(iroi)    = sum(insideIndex); 
+                            
         if show
             centroid = polygonCentroid(ROI(1,:),ROI(2, :));
             text(centroid(1), centroid(2),num2str(count(iroi)), 'color', 'r')
-            plot(ROI(1,:),ROI(2,:), 'r')
+            plot(ROI(1,:),ROI(2,:), 'r'), hold on
+            plot(xt,yt)
         end   
     end
     if show

@@ -65,53 +65,19 @@ for lap = 1:numLaps
     trial{lap}          = typetrial{obj.Laps.TrialType(laps(lap))};
     color(lap,:)        = trialcolor(obj.Laps.TrialType(laps(lap)),:);
 end
-%
+%Only pyramidal cells
+
 %Segment base on spatial coordinates rather than time.
 %interpolate the position to the longest time
-%the two arms of the T are mirrowed. There are in total 25 grids fo 100x100
+[leftT, rightT, failed_trial] = protoLap(XT, YT, length_run, trial, X_Run_Lap, ...
+                                         Y_Run_Lap, int_at_maze, Fs, animal, isIntern);
 
-longest = max(length_run)*Fs;
-Starpos = [XT(int_at_maze(:,1)), YT(int_at_maze(:,1))];
-Endpos  = [XT(int_at_maze(:,2)), YT(int_at_maze(:,2))];
-xl      = zeros(1,longest) ;yl = zeros(1,longest); %vectors to calculate the mean trajectory
-xr      = zeros(1,longest) ;yr = zeros(1,longest); 
-r       = 0;l = 0;
-x       = []; y = [];
-failed_trial = [];
-for ilap = 1 : numLaps
-    time    = linspace(0,length_run(ilap),longest); 
-    %real animal position and interporaltion
-    x       = XT(int_at_maze(ilap,1):int_at_maze(ilap,2));
-    y       = YT(int_at_maze(ilap,1):int_at_maze(ilap,2));   
-    xi      = spline(linspace(0,length_run(ilap),length(x)),x,time);
-    yi      = spline(linspace(0,length_run(ilap),length(y)),y,time);        
-    if strcmp(trial{ilap}, 'right') 
-        xr = xr + xi; yr = yr + yi; r  = r + 1;
-        %count spikes in the grids of the right arm        
-    elseif strcmp(trial{ilap}, 'left') 
-        xl  = xl + xi;yl = yl + yi; l  = l + 1;       
-    else
-        failed_trial =[ failed_trial ilap];
-    end
-    plot(x, y), hold on
-    for icell = 1 : N
-        plot(X_Run_Lap{ilap,icell}, Y_Run_Lap{ilap,icell},'x')
-    end
-
-end
-leftT= [xl; yl]'./l;
-rightT= [xr; yr]'./r;
-
-plot(leftT(:,1), leftT(:,2),'k','linewidth', 2), hold on
-plot(rightT(:,1), rightT(:,2),'k','linewidth', 2), 
-title(sprintf('Animal %s',animal))
-xlabel('x')
 %script to extract the grids
 segments     = 40;
 roiDims      = [20 200]; %width and length of ROI
 connectgrids = 1;
 ctrNeuron    = 0;
-show = 1;
+show         = 1;
 gridsL = get_grids(leftT, segments, connectgrids, show, roiDims);
 gridsR = get_grids(rightT, segments, connectgrids, show, roiDims);
 
@@ -119,17 +85,23 @@ gridsR = get_grids(rightT, segments, connectgrids, show, roiDims);
 
 count = zeros(N, segments, numLaps); %TODO find the 43 analitically
 for ilap = 1 : numLaps
+   xt   = XT(int_at_maze(ilap,1):int_at_maze(ilap,2));
+   yt   = YT(int_at_maze(ilap,1):int_at_maze(ilap,2));
    for icell = 1 : N
        show = 0;
        if icell == ctrNeuron; show = 1; figure(ilap), hold on;end
-       x = X_Run_Lap{ilap,icell};
-       y = Y_Run_Lap{ilap,icell};
+       
+       x    = X_Run_Lap{ilap,icell};
+       y    = Y_Run_Lap{ilap,icell};
+      
        if strcmp(trial{ilap}, 'right') || strcmp(trial{ilap}, 'errorLeft')
-          count(icell, :, ilap) = countROIspks(x, y, gridsR, show);
+           [cnt, duration]= countROIspks(x, y, xt, yt, gridsR, show);
        else
-          count(icell, :, ilap) = countROIspks(x, y, gridsL, show); 
+           [cnt, duration] = countROIspks(x, y, xt, yt, gridsL, show); 
        end
-       fprintf('Counting spikes Lap %d, neuron %d, %d spks \n',ilap, icell, sum(count(icell, :, ilap)))
+       %time normalization
+       count(icell, :, ilap) = cnt./(duration);
+       fprintf('Counting => Lap %d, cell %d, norm. f. rate %3.3f \n',ilap, icell, sum(count(icell, :, ilap)))
    end    
 end
 X_pyr = count(~isIntern,:,:);
@@ -301,12 +273,12 @@ annotation('textbox', [0 0.9 1 0.1], ...
     'HorizontalAlignment', 'center',...
     'Fontsize',18)
 set(gcf,'color', 'w', 'position', [100 100 1400 700])
-time = linspace(0, window, T); % from he extraction program
+duration = linspace(0, window, T); % from he extraction program
 F    = orth_traje_tr{numDim, foldmax_tr};
 for l= 1:length(F)
    for v = 1:dims(numDim)
        subplot(3, 3, v)
-       plot(time, F(l).data(v, :),'color',F(l).epochColors), hold on       
+       plot(duration, F(l).data(v, :),'color',F(l).epochColors), hold on       
    end
 end
 namePNG = sprintf('Results/%s_LV_w%d',animal, window);

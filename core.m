@@ -7,6 +7,17 @@ basepath        = '/media/bigdata/i01_maze05.005/';
 animal          = 'i01_maze05_MS.005';
 basepath        = '/media/bigdata/i01_maze06.002/';
 animal          = 'i01_maze06_MS.002';
+basepath        = '/media/bigdata/i01_maze06.005/';
+animal          = 'i01_maze06_MS.005';
+basepath        = '/media/bigdata/i01_maze08.001/';
+animal          = 'i01_maze08_MS.001';
+basepath        = '/media/bigdata/i01_maze08.004/';
+animal          = 'i01_maze08_MS.004';
+basepath        = '/media/bigdata/i01_maze13.003/';
+animal          = 'i01_maze13_MS.003';
+basepath        = '/media/bigdata/i01_maze15.002/';
+animal          = 'i01_maze15_MS.002';
+
 obj             = load([basepath animal '_BehavElectrData.mat']);
 clusters        = obj.Spike.totclu;
 laps            = obj.Laps.StartLaps(obj.Laps.StartLaps~=0); %@1250 Hz
@@ -76,7 +87,7 @@ end
 segments     = 40;
 roiDims      = [20 200]; %width and length of ROI
 connectgrids = 1;
-ctrNeuron    = 10; % neuron to plot just see things are going OK
+ctrNeuron    = 0; % neuron to plot just see things are going OK
 show         = 0;
 
 %count spikes inside grids and get normalized firing rate

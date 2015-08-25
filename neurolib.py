@@ -3,8 +3,10 @@ import scipy.ndimage.filters as sfil
 import numpy as np
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui
+import os
 
 
+# Old class to extract the data from the Matlab processed files of the hc-5 database
 class LoadBuszaki(object):
     """
     Class to extract and store information from Buszaki's databases
@@ -27,7 +29,7 @@ class LoadBuszaki(object):
         self.numN = max(self.clusters)
         self.spikes = self.get_var('res')
         self.fs = float(self.get_var('SamplingFrequency'))
-        self.celltype = self.get_var('isIntern') #TODO: separate spks based on neuron type
+        self.celltype = self.get_var('isIntern')  # TODO: separate spks based on neuron type
         self.spk_per_neuron = self.get_neurons()
         self.ave_firing = self.firing_rate()
         self.laps = np.trim_zeros(self.get_var('StartLaps'))
@@ -99,7 +101,7 @@ class LoadBuszaki(object):
                 if lap == 0:
                     spk = spikes
                     widget['run'].plot(spk / self.fs, np.ones(np.shape(spk)) + space, symbol='s',
-                                          symbolPen=(space, self.numN), pen=None, symbolSize=1)
+                                       symbolPen=(space, self.numN), pen=None, symbolSize=1)
                     # TODO: has to add a new case for the raster of the whole record
                 else:
                     win = self.extract_setions(lap)
@@ -173,8 +175,8 @@ class LoadBuszaki(object):
             wheel 11-13
         """
         enter = self.sectionIO[lap]
-        intervals = {'run': (enter[0, 0], enter[4, 1]-1 if enter[4, 1] != 0 else enter[5, 1]-1),
-                     'whl': (enter[11, 0], enter[12, 1]-1)}
+        intervals = {'run': (enter[0, 0], enter[4, 1] - 1 if enter[4, 1] != 0 else enter[5, 1] - 1),
+                     'whl': (enter[11, 0], enter[12, 1] - 1)}
         return intervals
 
     def firing_rate(self):
@@ -275,7 +277,7 @@ class LoadBuszaki(object):
                         if plot:
                             time = np.linspace(0, (w[1] - w[0]) / self.fs, num=len(fr))
                             if np.mean(fr) > (.5 / self.fs):
-                                widget[panel].plot(time, fr/max(fr) + space, pen=(space, self.numN))
+                                widget[panel].plot(time, fr / max(fr) + space, pen=(space, self.numN))
 
                     space += 1
 
@@ -304,9 +306,9 @@ class LoadBuszaki(object):
                     for n in fr_sort[panel]:
                         fr = self.fr_smo[panel][n]
                         if np.mean(fr) > (.2 / self.fs):
-                            fr = fr -fr.min()
-                            time = np.linspace(0., len(fr)/self.fs, num=len(fr))
-                            widget[panel].plot(time, fr/max(fr) + space, pen=(space, self.numN))
+                            fr = fr - fr.min()
+                            time = np.linspace(0., len(fr) / self.fs, num=len(fr))
+                            widget[panel].plot(time, fr / max(fr) + space, pen=(space, self.numN))
                         space += 1
                     for key, pw in widget.iteritems():
                         self.layout.addWidget(pw, self.panels_count[key], self.panels[key])
@@ -331,3 +333,98 @@ class LoadBuszaki(object):
                 print 'Neuron {} is inhibitory, removing'.format(i)
                 del self.spk_per_neuron['neuron {}'.format(i)]
         self.numN = len(self.spk_per_neuron)
+
+
+def find_files(folder_base):
+    """
+    Finds the matlab files in the hc-5 database containing the experimental data.
+    see hc-5 description for further details
+
+    :param folder_base: the main folder containing the hC-5 database files
+    :return: names: (name, paths) to the matlab files with the processed data
+    """
+    pattern_folder = 'i01_maze'
+    patters_file = 'BehavElectrData'
+    names = list()
+    for case in os.listdir(folder_base):
+        if case.__contains__(pattern_folder):
+            for f in os.listdir(os.path.join(folder_base, case)):
+                if f.__contains__(patters_file):
+                    print os.path.join(folder_base, case, f)
+                    names.append((case, os.path.join(folder_base, case, f)))
+    return names
+
+
+def get_cells(path, section=None, only_pyr=None, verbose=False):
+    """
+    Extract the spikes events from the MAT file of the HC-5 DB.
+    if section is provided, then spikes are split accordingly
+
+    :param path: Path to the processed MAT file
+    :param section: Name of the section to extract (default: None)
+                    Run, Wheel, or Other
+    :param only_pyr: return only pyramidal cells
+    :return neuron: list with the spikes for each cell and lap is section
+                    provided
+    :return space: X, Y coordinates of animal in the given section
+
+    """
+    # TODO: implement section wheel and other sections if needed
+    data = sio.loadmat(path)
+    clusters = np.squeeze(data['Spike']['totclu'][0, 0])
+    spikes = np.squeeze(data['Spike']['res'][0, 0])
+    isIntern = np.squeeze(data['Clu']['isIntern'][0, 0]) == 1
+    sections = np.squeeze(data['Par']['MazeSectEnterLeft'][0, 0])
+    X = np.squeeze(data['Track']['X'][0, 0])
+    Y = np.squeeze(data['Track']['Y'][0, 0])
+    # Separate spikes by neuron number
+    neuron = list()
+    space = list()
+    for n in range(1, max(clusters) + 1):
+
+        if only_pyr and isIntern[n - 1]:
+            continue
+        spk = spikes[clusters == n]
+        if verbose: print 'neuron {}-th with {} spks'.format(n, len(spk))
+
+        if section == 'Run':
+            # Get intervals of interest: Section 2 to 6 that correspond to the running sections.
+            # Section 1 seems to be between the running wheel and the central arm of the Maze.
+            #  It is not clear the boundary thus it is avoided
+            if verbose: print 'neuron {}-th is pyramidal with {} spks'.format(n, len(spk))
+
+            num_laps = len(sections)
+            laps = list()
+            for i in range(num_laps):
+                start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
+                idx = np.where(np.logical_and(spk >= start_run, spk <= end_run))
+                # save spike events aligned to the entering to sect 2.
+                laps.append(spk[idx] - start_run)
+                # Extract the animal space coordinates
+
+            neuron.append(laps)
+        else:
+            neuron.append(spk)
+    print '{} cells extracted'.format(len(neuron))
+    print 'Loading completed'
+    return neuron, space
+
+
+def raster(cells, title=''):
+    """
+    Creates a raster plot of spikes events
+
+    :param cells: list (N x 1) containing spk times
+
+    """
+    import matplotlib.pyplot as plt
+    space = 0
+    fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
+    ax = fig.add_axes([0.1, 0.1, 0.8, 0.8])
+
+    for n in range(len(cells)):
+        plt.plot(cells[n], np.ones(len(cells[n])) + space, '|')
+        space += 1
+    plt.xlabel('Samples')
+    plt.ylabel('Cell Num.')
+    plt.title(title)

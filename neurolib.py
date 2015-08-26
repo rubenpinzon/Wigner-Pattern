@@ -391,7 +391,8 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
             # Get intervals of interest: Section 2 to 6 that correspond to the running sections.
             # Section 1 seems to be between the running wheel and the central arm of the Maze.
             #  It is not clear the boundary thus it is avoided
-            if verbose: print 'neuron {}-th is pyramidal with {} spks'.format(n, len(spk))
+            if verbose:
+                print 'neuron {}-th is pyramidal with {} spks'.format(n, len(spk))
 
             num_laps = len(sections)
             laps = list()
@@ -401,7 +402,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
                 # save spike events aligned to the entering to sect 2.
                 laps.append(spk[idx] - start_run)
                 # Extract the animal space coordinates
-
+                space.append((X[start_run:end_run], Y[start_run:end_run]))
             neuron.append(laps)
         else:
             neuron.append(spk)
@@ -428,3 +429,64 @@ def raster(cells, title=''):
     plt.xlabel('Samples')
     plt.ylabel('Cell Num.')
     plt.title(title)
+
+
+def plot_position(space, title=''):
+    """
+
+    :param space: list of X,Y coordinates per lap
+
+    """
+    import matplotlib.pyplot as plt
+
+    fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
+    ax = fig.add_axes([0.1, 0.1, 0.8, 0.8])
+    for position in space:
+        plt.plot(position[0], position[1])
+    plt.xlabel('Position (mm)')
+    plt.ylabel('Position (mm)')
+    plt.title(title)
+    plt.show()
+
+
+def spike_train(spikes, length=1000, threshold=0.):
+    """
+    Conver spk events to matrix of spike trains (1's and 0's)
+    :param spikes: spike events
+    :param length: maximum length to extract
+    :return: trains: matrix of spike trains (N x length) or (N x lenght x laps)
+
+    """
+    n, l = np.shape(spikes)
+    trains = np.zeros([n, length, l])
+    for icell, cell in enumerate(spikes):
+        for ilap, lap in enumerate(cell):
+            inside = lap[lap < length]
+            trains[icell, inside, ilap] = 1.
+
+    if threshold != 0.:
+        m = np.mean(trains.reshape([n, -1]), axis=1) * 1250.
+        keep = m >= threshold
+        # print '{} Neurons removed with firing rate below {}'.format(sum(~keep), threshold)
+        return trains[keep]
+    return trains
+
+
+def binned(train, bin_size=0.1):
+    """
+    Binned and square root transformed spike trains
+
+    :param train:  spike trains
+    :param bin_size: in ms
+    :return: y : spike trains binned
+    """
+    # q x (Bins * Laps)
+    q, t, laps = np.shape(train)
+    bin_width = int(bin_size * 1250)
+    T = int(t / bin_width)
+    y = np.zeros([q, T, laps])
+    for lap in range(laps):
+        for iter_bin in range(T):
+            bin_start, bin_end = iter_bin * bin_width, (iter_bin + 1) * bin_width - 1
+            y[:, iter_bin, lap] = np.sum(train[:, bin_start:bin_end, lap], axis=1)
+    return y

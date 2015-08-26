@@ -28,7 +28,7 @@ time_seg        = linspace(0, length(eeg)/Fs, length(eeg));
 N               = size(spk_lap,2);
 typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 tcolor          = hsv(numLaps+1);
-%%
+%
 debug           = 1; %to show diganostic plots
 
 % Extract spks when the mouse is running and in the wheel to calculate
@@ -54,7 +54,7 @@ for lap = 1:numLaps
             idx = spk_lap{lap,neu}>=wheelNonZero(1)...
                           & spk_lap{lap,neu}<=wheelNonZero(end);
             %aligned to the start of the section
-            SpkWheel_lap{lap,neu} = spk_lap{lap,neu}(idx) - wheelNonZero(1);
+            SpkWheel_lap{lap,neu} = spk_lap{lap,neu}(idx) - wheelNonZero(1) + 1;
         end
     end
     
@@ -79,7 +79,7 @@ for lap = 1:numLaps
         text(700, 400 + 30*lap, ['Lap ' num2str(lap)], 'color', tcolor(lap,:));
         figure(22)
         plot(speed_lap, 'color', tcolor(lap,:)), hold on
-        text(700, 800 + 30*lap, ['Lap ' num2str(lap)], 'color', tcolor(lap,:));
+        text(700, 2000 + 200*lap, ['Lap ' num2str(lap)], 'color', tcolor(lap,:));
     end
     %Type of trial
     trial{lap}          = typetrial{obj.Laps.TrialType(laps(lap))};
@@ -87,6 +87,7 @@ for lap = 1:numLaps
 end
 figure(1), title('Wheel speed per Lap')
 figure(2), title('Position of animal per Lap in section Run')
+figure(22), title('Wheel speed (encoder)')
 if debug
    figure(3)
    plot(1:numLaps,run_len,'-s'), hold on
@@ -98,19 +99,20 @@ end
 %% 
 % Convert to DataHigh format without segmenting, that is, using the whole
 % time that the animal spent in the runing section. This implies laps with
-% different lenghts
-MaxTimeE = floor(Fs * min(run_len) * ones(1, numLaps));
-% MaxTimeE = floor(Fs * run_len);
+% different lenghts. The alternative is to segment based on spatial bins.
+
+MaxTimeE_run     = floor(Fs * min(run_len) * ones(1, numLaps));
+%MaxTimeE_run = floor(Fs * run_len);
 onlyCorrectTrial = true;
 %Data processed for datahigh without interneuorns
-SpkRun_DH = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
+Run = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE_run,...
                      trial, color, 'run', onlyCorrectTrial);
 
 if debug
     figure(4)
     for ilap = 1: numLaps
         if strcmp(trial{ilap}, 'right') || strcmp(trial{ilap}, 'left')
-            idx_run                 = [events{ilap}(2,1), events{ilap}(2,1) + MaxTimeE(ilap)];
+            idx_run                 = [events{ilap}(2,1), events{ilap}(2,1) + MaxTimeE_run(ilap)];
             X_at_maze               = X(idx_run(1):idx_run(2));
             Y_at_maze               = Y(idx_run(1):idx_run(2));
             plot(X_at_maze, Y_at_maze, 'color', tcolor(ilap,:)), hold on
@@ -120,191 +122,47 @@ if debug
         end
     end
 end
-                 
+
+%with the wheel section the difference in laps can be seen in the distance
+%spanned by the wheel encoder and it could be standarized to be uniform, or 
+%just use time but then distance covered is different.
+
 % MaxTimeE = floor(Fs * min(wheel_len) * ones(1, numLaps-1));   
-MaxTimeE = floor(Fs * wheel_len);
-SpkWheel_DH = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE,...
+MaxTimeE_wh    = floor(Fs * 10 * ones(1, numLaps-1));
+Wheel          = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE_wh,...
                         trial, color, 'wheel',onlyCorrectTrial);
 
-%% GUI based DataHigh
-DataHigh(SpkRun_DH, 'DimReduce');
-
-%% Command based GPFA based on DataHigh Library
+%% Command based GPFA based Alexander Aecker OOP implementation.
 % Check dependency of the method with the bin size
 
-bin_size        = 0.05; 
-dims            = 3:30; % Target latent dimensions
-results(1).bin  = bin_size;
 
-D               = SpkRun_DH;
+Laps            = length(Run);
+bin_size        = 0.1; 
+bin_width       = ceil(bin_size * Fs); % bin size (Seconds * Fs) = samples
+dims            = 3 : 2 : 30; % Target latent dimensions
+results(1).bin  = bin_size;
 firing_thr      = 0.2 ; % Minimum firing rate find which 
                         % neurons should be kept
-m               = mean([D.data],2) * Fs;
-keep_neurons    = m >= firing_thr;
-fprintf('%d neurons remained with firing rate above %2.2f Hz\n',...
-            sum(keep_neurons),firing_thr)
-% Remove low firing rate neurons
-for itrial = 1:length(D)
-    D(itrial).data = D(itrial).data(keep_neurons,:);
-end
-yDim            = sum(keep_neurons);
-useSqrt         = 1; % square root tranform for pre-processing?    
-                                   
-  
-bin_width       = ceil(bin_size * Fs); % bin size (Seconds * Fs) = samples
-
-%Extrat bins for one trial, since all the trials
-%are of the same duration
-for ilap = 1 : length(D)
-    seq         = [];
-    T           = floor(size(D(ilap).data, 2) / bin_width);
-    seq.y       = nan(yDim, T);
-    for t = 1:T
-      iStart        = bin_width * (t-1) + 1;
-      iEnd          = bin_width * t;
-      seq.y(:,t)    = sum(D(ilap).data(:, iStart:iEnd), 2);
-    end
-    %normalization with square root transform
-    if useSqrt
-        seq.y       = sqrt(seq.y);
-    end
-    D(ilap).data    = seq.y;
-    D(ilap).y       = seq.y;
-    D(ilap).T          = T;    
-end
+Run             = filterbin(Run, firing_thr, bin_width);
 
 %preallocating variables
-folds           = 3;
-mask            = false(1,length(D)); % for cross validation
-test_mask       = mask;
-cv_trials       = randperm(length(D));
-fold_indx       = floor(linspace(1,length(D)+1, folds + 1));
+%issues: Very low firing rates per lap. To achieve the estimation all the
+%laps have to be taken into account, and therefore the temporal lenght has
+%to be uniform which is a limiting factor in the running section. Once the
+%model is trained, the projection of each lap data into the Latent space
+%would produce the neural trajectories.
+for ilap = 1 : Laps
+    for idim = 1 : length(dims)   
+        
+            Y     = [Run.bins];
+            Y     = reshape(Y, [55 Run(1).T Laps]);
+            
+            model = GPFA('Tolerance', 1e-6, 'verbose', 1);
 
-for idim = 1 : length(dims)
-    for ifold = 1 : folds  % three-fold cross-validation        
-        % prepare masks:
-        % test_mask isolates a single fold, train_mask takes the rest
-        test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+            model = model.fit(sqrt(Y), 10 , 'hist');
+            [model, Xest] = model.normFactors(Y);
 
-        train_mask = ~test_mask;
-
-        train_data = D(train_mask);
-        test_data  = D(test_mask);
-        %training of the GPFA
-        [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,dims(idim),...
-                                                 'bin_width', bin_width);
-
-        %Posterior of test data given the trained model
-        [traj, ll_te] = exactInferenceWithLL(test_data, params,'getLL',1);
-        % orthogonalize the trajectories
-        [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
-        traj = segmentByTrial(traj, Xorth, 'data');
-
-        %Validation with LNO
-        cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
-                                  (test_data,params,idim));
-        cvdata       = cell2mat(cv_gpfa_cell(7,:));
-        mse_fold     = sum(sum((cvdata-[test_data.data]).^2));
-
-        mse(idim, ifold) = mse_fold;
-        ll(idim, ifold) = ll_te;
-        paramsGPFA{idim, ifold} = params;
-        orth_traje{idim, ifold} = traj;
-        fprintf('Bin %d, Dimension %d, fold %d',1000*bin_sizes(ibin),idim, ifold)
-    end        
+            
+        end
+    end
 end
-% best dimension and best across folds
-[~, foldmax_te] = max(sum(ll));
-[~, imax_te] = max(ll(:,foldmax_te));
-[~, foldmax_tr] = max(sum(ll_train));
-[~, imax_tr] = max(ll(:,foldmax_tr));
-
-results(ibin).ll_test = ll;
-results(ibin).mse = mse;
-results(ibin).dim = imax_te;
-results(ibin).GPFA = paramsGPFA;
-results(ibin).traj = orth_traje_te;
-
-% Setup figure to sumarize results
-close all
-figure(ibin)
-til = sprintf('Run Section With %3.1f ms bins and %2.1fs spike trains', 1000*bin_sizes(ibin), window);
-annotation('textbox', [0 0.9 1 0.1], ...
-    'String', til, ...
-    'EdgeColor', 'none', ...
-    'HorizontalAlignment', 'center',...
-    'Fontsize',18)
-set(gcf,'color', 'w', 'position', [100 100 1400 700])
-
-% projection over the three best dimensions (SVD)
-for itrial = 1:length(train_data)
-    p = orth_traje_tr{imax_tr, foldmax_tr}(itrial).data;
-    c = orth_traje_tr{imax_tr, foldmax_tr}(itrial).epochColors;
-    subplot(2,3,[1 2 4 5]), grid on
-    plot(p(1,:), p(2,:), 'Color', c,...
-          'linewidth',2); hold on
-end
-for itrial = 1:length(test_data)
-    p = orth_traje_te{imax_te, foldmax_te}(itrial).data;
-    c = orth_traje_te{imax_te, foldmax_te}(itrial).epochColors;
-    subplot(2,3,[1 2 4 5]), grid on
-    plot(p(1,:), p(2,:), 'Color', 0.5*c,...
-          'linewidth',2); hold on
-end
-xlabel('Eigenvector 1')
-ylabel('Eigenvector 2')
-zlabel('Eigenvector 3')
-
-% MSE
-subplot(2,3,3)
-mean_mse = mean(mse,2);
-plot(mean_mse,'linewidth',2, 'linestyle','-.'), hold on
-plot(mse)
-plot(imax_te, mean_mse(imax_te),'r*', 'markersize',10)
-xlabel('Latent Dimension')
-ylabel('Mean Sqaure Error (LNO)')
-
-% LogLike
-subplot(2,3,6)
-mean_ll_test  = mean(ll,2);
-mean_ll_train = mean(ll_train,2);
-offset_te = mean(mean_ll_test);
-offset_tr = mean(mean_ll_train);
-plot(dims,mean_ll_test,'linewidth',2, 'linestyle','-.', 'color','k'), hold on
-plot(dims,mean_ll_train,'linewidth',2, 'linestyle','-.', 'color','b')
-plot(dims,ll,'k')
-plot(dims,ll_train,'b')
-plot(imax_te, mean_ll_test(imax_te),'k*', 'markersize',10)
-plot(imax_tr, mean_ll_train(imax_tr),'bs', 'markersize',10)
-xlabel('Latent Dimension')
-ylabel('Log Likelihood')
-title('Train','color','b')
-box off
-namePNG = sprintf('Results/i01_maze06.002_cells_%d', bin_sizes(ibin));
-print(gcf,[basepath namePNG],'-dpng')
-
-figure(ibin + 1)
-numDim = 7; % 9 latent variables
-til = sprintf('9 Latent Variables');
-annotation('textbox', [0 0.9 1 0.1], ...
-    'String', til, ...
-    'EdgeColor', 'none', ...
-    'HorizontalAlignment', 'center',...
-    'Fontsize',18)
-set(gcf,'color', 'w', 'position', [100 100 1400 700])
-time = linspace(0, window, T); % from he extraction program
-F    = orth_traje_tr{numDim, foldmax_tr};
-for l= 1:length(F)
-   for v = 1:dims(numDim)
-       subplot(3, 3, v)
-       plot(time, F(l).data(v, :),'color',F(l).epochColors), hold on       
-   end
-end
-namePNG = sprintf('Results/i01_maze06.002_LV_%d', 1000*bin_sizes(ibin));
-print(gcf,[basepath namePNG],'-dpng')    
-
-
-
-nameFile = sprintf('Results/i01_maze06.002_results_%d', 1000*bin_sizes(ibin));
-save([basepath 'Results/i01_maze06.002_run_w' num2str(window)...
-        's_results.mat'],'results')

@@ -421,6 +421,11 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
             neuron_spk.append(spk)
             neuron_xy.append(xy_cell)
 
+    # duration of each lap
+    duration = list()
+    for i in range(num_laps):
+        start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
+        duration.append(end_run - start_run)
     neuron = {'spikes': neuron_spk, 'xy': neuron_xy}
     # extract position per lap
     for i in range(num_laps):
@@ -450,9 +455,10 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
             fil.gaussian_filter1d(trajectory_median[0], 50.), fil.gaussian_filter1d(trajectory_median[1], 50.))
 
     trajectory_dict.update(trajectory_dict_interp)
+
     print '{} cells extracted'.format(len(neuron['spikes']))
-    print 'Loading completed'
-    return neuron, trajectory_dict
+    print '{} Loading completed'.format(path)
+    return neuron, trajectory_dict, duration
 
 
 def raster(cells, title=''):
@@ -690,3 +696,41 @@ def estimate_hidden(model):
     print 'Done estimation with ll = {}'.format(loglike)
 
     return EX.reshape([p, T, N]), VarX, loglike
+
+
+def construct_rois(bin_shape, path, verbose=False, color=[1, 0, 0]):
+    """
+    Creates the rois along an instructive path, since the left and right paths
+    share the central portion of the maze
+
+    :return: centers of the rois and rois
+    """
+    import math as mt
+    from matplotlib import pyplot as plt
+    origin = path[:, 0]
+    dist = np.cumsum(np.sqrt(np.sum(np.diff(path - origin[:, np.newaxis]) ** 2, axis=0)))
+    segments = int(np.floor(dist[-1] / bin_shape[0]))
+    border_old = 0
+    connect = True
+    rois = list()
+    centers = list()
+    old_roi = ([0, 0])
+    for i in range(segments):
+        dist_bin = bin_shape[0] * (0.5 + i)
+        border = np.where(np.diff(dist <= dist_bin))[0][0]
+        delta = path[:, border_old] - path[:, border]
+        center = (path[:, border_old] + path[:, border]) / 2
+        angle = mt.atan2(-delta[1], delta[0])
+        roi = rect_roi(center, bin_shape, angle)
+        if connect and i > 0:
+            roi[0] = old_roi[0]
+            roi[4] = old_roi[0]
+            roi[1] = old_roi[1]
+
+        border_old = border
+        old_roi = [roi[3], roi[2]]
+        rois.append(roi.T)
+        if verbose:
+            plt.plot(roi.T[0], roi.T[1], color=color)
+        centers.append(center)
+    return centers, rois

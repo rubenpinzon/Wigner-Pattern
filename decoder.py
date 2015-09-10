@@ -15,7 +15,6 @@ names = nl.find_files(folder)
 # Neurons below that firing rate are removed. Bin_size is in ms. Latent_dim must be
 # smaller than the num of cells.
 animal = 3
-window = 3.
 fs = 1250
 # grid oriented in the direction of the average trajectory mm x mm
 # only pyramidal cells. Trajectory is a dictionary containing the average position
@@ -33,47 +32,9 @@ path_left = np.array(trajectory['left_median'])
 path_right = np.array(trajectory['right_median'])
 
 
-def construct_rois(bin_shape, path, connect=True, verbose=False, color=[1, 0, 0]):
-    """
-    Creates the rois along an instructive path, since the left and right paths
-    share the central portion of the maze
-
-    :return: centers of the rois and rois
-    """
-    import math as mt
-    origin = path[:, 0]
-    dist = np.cumsum(np.sqrt(np.sum(np.diff(path - origin[:, np.newaxis]) ** 2, axis=0)))
-    segments = int(np.floor(dist[-1] / bin_shape[0]))
-    border_old = 0
-    connect = True
-    rois = list()
-    centers = list()
-    old_roi = ([0, 0])
-    for i in range(segments):
-        dist_bin = bin_shape[0] * (0.5 + i)
-        border = np.where(np.diff(dist <= dist_bin))[0][0]
-        delta = path[:, border_old] - path[:, border]
-        center = (path[:, border_old] + path[:, border]) / 2
-        angle = mt.atan2(-delta[1], delta[0])
-        print angle * 180 / np.pi
-        roi = nl.rect_roi(center, bin_shape, angle)
-        if connect and i > 0:
-            roi[0] = old_roi[0]
-            roi[4] = old_roi[0]
-            roi[1] = old_roi[1]
-
-        border_old = border
-        old_roi = [roi[3], roi[2]]
-        rois.append(roi.T)
-        if verbose:
-            plt.plot(roi.T[0], roi.T[1], color=color)
-        centers.append(center)
-    return centers, rois
-
-
 # creates the rois along the instructive path
-centers_left, rois_left = construct_rois(bin_shape, path_left, verbose=True, color=[1, 0.3, 0.3])
-centers_right, rois_right = construct_rois(bin_shape, path_right, verbose=True, color=[0.3, 0.3, 1])
+centers_left, rois_left = nl.construct_rois(bin_shape, path_left)
+centers_right, rois_right = nl.construct_rois(bin_shape, path_right)
 
 
 def count_spikes(rois, centers, verbose=-1):

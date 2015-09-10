@@ -96,7 +96,7 @@ if debug
    title('Duration of sections per lap')
    legend('Run', 'Wheel')
 end
-%% 
+%% time-segmenting with the fastest lap
 % Convert to DataHigh format without segmenting, that is, using the whole
 % time that the animal spent in the runing section. This implies laps with
 % different lenghts. The alternative is to segment based on spatial bins.

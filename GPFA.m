@@ -566,9 +566,9 @@ classdef GPFA
             %   example with N neurons and two latent factors.
             
             if ~nargin
-                N = 100;
+                N = 10;
             end
-            T = 20;
+            T = 5;
             p = 2;
             q = 16;
             gamma = log(1 ./ [4; 1] .^ 2);

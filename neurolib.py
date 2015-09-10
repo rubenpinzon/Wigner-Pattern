@@ -626,3 +626,67 @@ def count_spikes(cells, arena_shape, grid_shape, verbose=-1):
     return spike_count
 
 
+def covFun(time, tau, sigma):
+    """ Gaussian process covariance function square exp"""
+    sn = sigma
+    sf = 1 - sn
+    kernel = sf * np.exp(-0.5 * np.exp(tau) * time ** 2) + sn * (time == 0)
+    return kernel
+
+
+def estimate_hidden(model):
+    """
+    Estimate latent factors (and log-likelihood).
+       EX, VarX, logLike = estX(Y) returns the expected
+       value (EX) of the latent state X, its variance (VarX), and
+       the log-likelihood (logLike) of the data Y.
+
+    :param model:
+    :return: Expentation hidden, variance and lok-likelihood
+    """
+    R = model['R']
+    C = model['C']
+    T = model['T']
+    p = model['p']
+    q = model['q']
+    N = model['N']
+    gamma_gp = model['gamma']
+    sigma_noise = model['sigmaN']
+    Y = model['y']
+
+    from scipy.linalg import toeplitz
+
+    # compute GP covariance and its inverse T*p x T*p
+    Kb = np.zeros([T * p, T * p])
+    Kbi = np.zeros([T * p, T * p])
+    logdetKb = 0.
+
+    for i in range(p):
+        K = toeplitz(covFun(np.arange(0, T), gamma_gp[i], sigma_noise))
+        # TODO: iplement a fast inverse method for symmetric Toeplitz matrices
+        ndx = np.arange(i, T * p, p) + (T * p) * np.arange(i, T * p, p)[:, np.newaxis]
+        Kbi.flat[ndx] = np.linalg.inv(K)
+        Kb.flat[ndx] = K
+        sig, det = np.linalg.slogdet(K)
+        logdetKb += sig * det
+
+
+    # Perform E tep (1) C'inv(R)*C
+    RiC = np.divide(1., R)[:, np.newaxis] * C
+    CRiC = np.dot(C.T, RiC)
+    VarX = np.linalg.inv(Kbi + np.kron(np.identity(T), CRiC))
+    logdetM = -np.product(np.linalg.slogdet(VarX))
+    Cb = np.kron(np.identity(T), C)
+    KbCb = Kb.dot(Cb.T)
+    Rbi = np.kron(np.identity(T), np.diagflat(1. / R))
+    RbiCb = np.kron(np.identity(T), RiC)
+    CKCRi = Rbi - RbiCb.dot(VarX).dot(RbiCb.T)
+    EX = KbCb.dot(CKCRi).dot(np.reshape(Y, [q * T, N]))
+    # calculate log-likelihood
+    val = -T * np.log(R).sum() - logdetKb - logdetM - q * T * np.log(2 * np.pi)
+    norm_y = (np.divide(1., np.sqrt(R))[:, np.newaxis] * Y).flatten()
+    CRiY = np.reshape(RiC.T.dot(Y), [p * T, N])
+    loglike = 0.5 * (N * val - norm_y.T.dot(norm_y) + np.sum(CRiY * VarX.dot(CRiY)))
+    print 'Done estimation with ll = {}'.format(loglike)
+
+    return EX.reshape([p, T, N]), VarX, loglike

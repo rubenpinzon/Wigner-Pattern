@@ -28,7 +28,7 @@ arena_shape = np.array([1000, 1100])
 # spk_count = nl.count_spikes(cells['xy'], arena_shape, grid_shape, verbose=20)
 # segmentation along a instructive path
 
-bin_shape = np.array([40, 300])
+bin_shape = np.array([40, 100])
 path_left = np.array(trajectory['left_median'])
 path_right = np.array(trajectory['right_median'])
 
@@ -43,7 +43,7 @@ def construct_rois(bin_shape, path, connect=True, verbose=False, color=[1, 0, 0]
     import math as mt
     origin = path[:, 0]
     dist = np.cumsum(np.sqrt(np.sum(np.diff(path - origin[:, np.newaxis]) ** 2, axis=0)))
-    segments = int(np.floor(dist[-1] / bin_shape[0]) + 1)
+    segments = int(np.floor(dist[-1] / bin_shape[0]))
     border_old = 0
     connect = True
     rois = list()
@@ -55,6 +55,7 @@ def construct_rois(bin_shape, path, connect=True, verbose=False, color=[1, 0, 0]
         delta = path[:, border_old] - path[:, border]
         center = (path[:, border_old] + path[:, border]) / 2
         angle = mt.atan2(-delta[1], delta[0])
+        print angle * 180 / np.pi
         roi = nl.rect_roi(center, bin_shape, angle)
         if connect and i > 0:
             roi[0] = old_roi[0]
@@ -122,9 +123,9 @@ plt.plot(trajectory['right_median'][0], trajectory['right_median'][1], color='b'
 
 
 # sanity check: raster one lap
-nl.raster([x[0][0] for x in cells], title='{} Lap 0'.format(names[animal][0]))
+nl.raster([x[12] for x in cells['spikes']], title='{} Lap 0'.format(names[animal][0]))
 # list: cell, spk/pos, x/y, lap : TODO: should be simplified with a dict
-N, _, laps = np.shape(cells)
+N, _, laps = np.shape(cells['spikes'])
 for l in range(laps):
     plt.plot(cells[2][1][l][0], cells[2][1][l][1], 'x')
     # Compute the position histogram for pyramidal cells

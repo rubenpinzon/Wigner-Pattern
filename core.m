@@ -5,7 +5,6 @@ animals         = {'i01_maze06.002', 'i01_maze05.005', 'i01_maze06.005',...
                     'i01_maze08.001' };
 basepath        = '/media/bigdata/';
 files           = get_matFiles(animals, basepath);
-
 %========================Variables of Interest===========================
 obj             = load([basepath files{2}]);
 clusters        = obj.Spike.totclu;

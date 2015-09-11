@@ -382,6 +382,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     Y = np.squeeze(data['Track']['Y'][0, 0])
     x_spk = np.squeeze(data['Spike']['X'][0, 0])
     y_spk = np.squeeze(data['Spike']['Y'][0, 0])
+    direction = np.squeeze(data['Laps']['TrialType'][0, 0])
     hit = np.squeeze(data['Par']['BehavType'][0, 0]) == 1
     # Separate spikes by neuron number
     neuron_xy = list()
@@ -414,7 +415,6 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
                 # save spike events aligned to the entering to sect 2.
                 laps.append(spk[idx] - start_run)
                 xy_laps.append((xy_cell[0][idx], xy_cell[1][idx]))
-
             neuron_spk.append(laps)
             neuron_xy.append(xy_laps)
         else:
@@ -423,16 +423,19 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
 
     # duration of each lap
     duration = list()
+    arm = list()
     for i in range(num_laps):
         start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
         duration.append(end_run - start_run)
-    neuron = {'spikes': neuron_spk, 'xy': neuron_xy}
+        arm.append(direction[start_run+10])
+
+    neuron = {'spikes': neuron_spk, 'xy': neuron_xy, 'direction': arm, 'hit': hit}
     # extract position per lap
     for i in range(num_laps):
         if hit[i]:
             start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
             # split the trajectories based on the Y position
-            if Y[start_run:end_run].mean() > 500:
+            if arm[i] == 1:
                 trajectory_left.append((X[start_run:end_run], Y[start_run:end_run]))
             else:
                 trajectory_right.append((X[start_run:end_run], Y[start_run:end_run]))
@@ -440,6 +443,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     trajectory_dict = {'left': trajectory_left, 'right': trajectory_right}
     # compute the average trajectories by interpolating to the same length all
     #  the trajectories in the same direction
+
     trajectory_dict_interp = dict()
     for dir, trajectory in trajectory_dict.iteritems():
         _, max_time = np.shape(max(trajectory, key=lambda x: np.shape(x)[1]))
@@ -579,6 +583,17 @@ def point_in_poly(x, y, poly):
         p1x, p1y = p2x, p2y
 
     return inside
+
+
+def multi_point_in_poly(x, y, rois):
+    count = list()
+    for poly in rois:
+        inside = 0
+        for cx, cy in zip(x, y):
+            if point_in_poly(cx, cy, poly.T):
+                inside += 1
+        count.append(inside)
+    return count
 
 
 def count_spikes(cells, arena_shape, grid_shape, verbose=-1):

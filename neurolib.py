@@ -389,6 +389,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     neuron_spk = list()
     trajectory_left = list()
     trajectory_right = list()
+    trajectory_all = list()
     num_laps = len(sections)
 
     for n in range(1, max(clusters) + 1):
@@ -427,14 +428,15 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     for i in range(num_laps):
         start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
         duration.append(end_run - start_run)
-        arm.append(direction[start_run+10])
+        arm.append(direction[start_run + 10])
 
     neuron = {'spikes': neuron_spk, 'xy': neuron_xy, 'direction': arm, 'hit': hit}
     # extract position per lap
     for i in range(num_laps):
+        start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
+        # split the trajectories based on the Y position
+        trajectory_all.append((X[start_run:end_run], Y[start_run:end_run]))
         if hit[i]:
-            start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
-            # split the trajectories based on the Y position
             if arm[i] == 1:
                 trajectory_left.append((X[start_run:end_run], Y[start_run:end_run]))
             else:
@@ -459,6 +461,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
             fil.gaussian_filter1d(trajectory_median[0], 50.), fil.gaussian_filter1d(trajectory_median[1], 50.))
 
     trajectory_dict.update(trajectory_dict_interp)
+    trajectory_dict.update({'all_traj': trajectory_all})
 
     print '{} cells extracted'.format(len(neuron['spikes']))
     print '{} Loading completed'.format(path)

@@ -428,7 +428,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     for i in range(num_laps):
         start_run, end_run = sections[i][1, 0], sum(sections[i][4:6, 1])
         duration.append(end_run - start_run)
-        arm.append(direction[start_run + 10])
+        arm.append(direction[start_run])
 
     neuron = {'spikes': neuron_spk, 'xy': neuron_xy, 'direction': arm, 'hit': hit}
     # extract position per lap
@@ -437,10 +437,14 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
         # split the trajectories based on the Y position
         trajectory_all.append((X[start_run:end_run], Y[start_run:end_run]))
         if hit[i]:
-            if arm[i] == 1:
+            if Y[end_run] > Y[start_run]:
                 trajectory_left.append((X[start_run:end_run], Y[start_run:end_run]))
+                assert Y[end_run] > Y[start_run], 'lap {} is not to the left as supposed'.format(i)
             else:
                 trajectory_right.append((X[start_run:end_run], Y[start_run:end_run]))
+                assert Y[end_run] < Y[start_run], 'lap {} is not to the right as supposed'.format(i)
+        else:
+            print 'Skipping lap {} because animal failed it'.format(i)
 
     trajectory_dict = {'left': trajectory_left, 'right': trajectory_right}
     # compute the average trajectories by interpolating to the same length all

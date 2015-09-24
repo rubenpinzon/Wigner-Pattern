@@ -16,7 +16,7 @@ fs = 1250
 bin_size = 0.05
 # get_cell extract the spike trains for the section specified (only Run currently implemented),
 # and filters to only pyramidal cells
-cells, trajectory = nl.get_cells(names[animal][1], only_pyr=True, section='Run')
+cells, trajectory, duration = nl.get_cells(names[animal][1], only_pyr=True, section='Run')
 # convert the spike times to spike trains with duration = window and filter neurons with
 # firing rate below the threshold
 y = nl.spike_train(cells['spikes'], length=window * fs, threshold=0.2)
@@ -47,8 +47,8 @@ import neurolib as nl
 
 from scipy.linalg import toeplitz
 
-N = 10
-T = 5
+N = 1  # laps
+T = 50
 p = 2
 q = 16
 gamma = np.log(1 / np.array([4., 1.]) ** 2)
@@ -120,5 +120,5 @@ while iteration <= 2 or (gpfa['loglike'][-1] - gpfa['loglike'][-2]) / (gpfa['log
         T2[p + t, p + t] = N
 
     CD = T1.dot(np.linalg.inv(T2))
-    model['C'] = CD[:, 0:p]
-    model['D'] = CD[:, p:p + T]
+    gpfa['C'] = CD[:, 0:p]
+    gpfa['D'] = CD[:, p:p + T]

@@ -344,7 +344,7 @@ def find_files(folder_base):
     :return: names: (name, paths) to the matlab files with the processed data
     """
     pattern_folder = 'i01_maze'
-    patters_file = 'BehavElectrData'
+    patters_file = 'BehavElectrData.mat'
     names = list()
     for case in os.listdir(folder_base):
         if case.__contains__(pattern_folder):
@@ -697,7 +697,6 @@ def estimate_hidden(model):
         Kb.flat[ndx] = K
         sig, det = np.linalg.slogdet(K)
         logdetKb += sig * det
-
 
     # Perform E tep (1) C'inv(R)*C
     RiC = np.divide(1., R)[:, np.newaxis] * C

@@ -13,8 +13,8 @@ if ~filterTrial
        D(l).condition = trial{l}; 
        D(l).epochColors = color(l, :);
        for c=1:cells
-           spk =  data{l,c}<MaxTimeE(l);
-           D(l).data(c, spk) = 1;
+           spk =  data{l,c};
+           D(l).data(c, spk(spk<MaxTimeE(l))) = 1;
        end
        D(l).trialId    = l;
        % Tracking progress
@@ -28,8 +28,9 @@ else
            D(cnt).condition = trial{l}; 
            D(cnt).epochColors = color(l, :);
            for c=1:cells
-               spk =  data{l,c}<MaxTimeE(l);
-               D(cnt).data(c, spk) = 1;
+               spk =  data{l,c};
+               
+               D(cnt).data(c, spk(spk<MaxTimeE(l))) = 1;
            end
            D(cnt).trialId    = l;
 

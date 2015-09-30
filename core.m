@@ -1,13 +1,16 @@
-%% Analysis of Buzsaki database
-clc, close all, clear all;
+%% =======================================================================%
+%=================      Preprocessing             ========================%
+%=========================================================================%
+clc, close all; clear all;
+cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
-animals         = {'i01_maze06.002', 'i01_maze05.005', 'i01_maze06.005',...
-                    'i01_maze08.001' };
 basepath        = '/media/bigdata/';
-files           = get_matFiles(animals, basepath);
+[files, animals, roots]= get_matFiles(basepath);
+
 
 %========================Variables of Interest===========================
-obj             = load([basepath files{2}]);
+animal          = 1;
+obj             = load(files{animal});
 clusters        = obj.Spike.totclu;
 laps            = obj.Laps.StartLaps(obj.Laps.StartLaps~=0); %@1250 Hz
 %Adding the end of the last lap because Laps only contains the start
@@ -27,8 +30,10 @@ time_seg        = linspace(0, length(eeg)/Fs, length(eeg));
                                                 laps);
 N               = size(spk_lap,2);
 typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
-tcolor          = hsv(numLaps+1);
-%%
+tcolor          = jet(numLaps+1);
+%% =======================================================================%
+%==============   Extract Running/wheel Section   ========================%
+%=========================================================================%
 debug           = 1; %to show diganostic plots
 
 % Extract spks when the mouse is running and in the wheel to calculate
@@ -54,7 +59,7 @@ for lap = 1:numLaps
             idx = spk_lap{lap,neu}>=wheelNonZero(1)...
                           & spk_lap{lap,neu}<=wheelNonZero(end);
             %aligned to the start of the section
-            SpkWheel_lap{lap,neu} = spk_lap{lap,neu}(idx) - wheelNonZero(1);
+            SpkWheel_lap{lap,neu} = spk_lap{lap,neu}(idx) - wheelNonZero(1) + 1;
         end
     end
     
@@ -79,7 +84,7 @@ for lap = 1:numLaps
         text(700, 400 + 30*lap, ['Lap ' num2str(lap)], 'color', tcolor(lap,:));
         figure(22)
         plot(speed_lap, 'color', tcolor(lap,:)), hold on
-        text(700, 800 + 30*lap, ['Lap ' num2str(lap)], 'color', tcolor(lap,:));
+        text(700, 800 + 150*lap, ['Lap ' num2str(lap)], 'color', tcolor(lap,:));
     end
     %Type of trial
     trial{lap}          = typetrial{obj.Laps.TrialType(laps(lap))};
@@ -95,12 +100,16 @@ if debug
    title('Duration of sections per lap')
    legend('Run', 'Wheel')
 end
-%% 
+figure(22)
+title('Linear distance spanned in the wheel')
+%% =======================================================================%
+%==============   Extract Running/wheel Section   ========================%
+%=========================================================================%
 % Convert to DataHigh format without segmenting, that is, using the whole
 % time that the animal spent in the runing section. This implies laps with
 % different lenghts
-MaxTimeE = floor(Fs * min(run_len) * ones(1, numLaps));
-% MaxTimeE = floor(Fs * run_len);
+
+MaxTimeE = floor(Fs * run_len);
 onlyCorrectTrial = true;
 %Data processed for datahigh without interneuorns
 SpkRun_DH = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
@@ -120,8 +129,8 @@ if debug
         end
     end
 end
-                 
-% MaxTimeE = floor(Fs * min(wheel_len) * ones(1, numLaps-1));   
+title('Chk: Segmentation length (squares)')                 
+%MaxTimeE = floor(Fs * min(wheel_len) * ones(1, numLaps-1));   
 MaxTimeE = floor(Fs * wheel_len);
 SpkWheel_DH = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE,...
                         trial, color, 'wheel',onlyCorrectTrial);
@@ -129,15 +138,17 @@ SpkWheel_DH = get_high(SpkWheel_lap(:,isIntern==0), MaxTimeE,...
 %% GUI based DataHigh
 DataHigh(SpkRun_DH, 'DimReduce');
 
-%% Command based GPFA based on DataHigh Library
-% Check dependency of the method with the bin size
+%% =======================================================================%
+%======   Command based GPFA based on DataHigh Library   =================%
+%=========================================================================%
 
-bin_size        = 0.05; 
-dims            = 3:30; % Target latent dimensions
+bin_size        = 0.02;  %20 ms
+zDim            = 20;    % Target latent dimensions
 results(1).bin  = bin_size;
 
 D               = SpkRun_DH;
-firing_thr      = 0.2 ; % Minimum firing rate find which 
+
+firing_thr      = 0.5 ; % Minimum firing rate find which 
                         % neurons should be kept
 m               = mean([D.data],2) * Fs;
 keep_neurons    = m >= firing_thr;
@@ -170,7 +181,7 @@ for ilap = 1 : length(D)
     end
     D(ilap).data    = seq.y;
     D(ilap).y       = seq.y;
-    D(ilap).T          = T;    
+    D(ilap).T       = T;    
 end
 
 %preallocating variables
@@ -180,39 +191,43 @@ test_mask       = mask;
 cv_trials       = randperm(length(D));
 fold_indx       = floor(linspace(1,length(D)+1, folds + 1));
 
-for idim = 1 : length(dims)
-    for ifold = 1 : folds  % three-fold cross-validation        
-        % prepare masks:
-        % test_mask isolates a single fold, train_mask takes the rest
-        test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
 
-        train_mask = ~test_mask;
+for ifold = 1 : folds  % three-fold cross-validation        
+    % prepare masks:
+    % test_mask isolates a single fold, train_mask takes the rest
+    test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
 
-        train_data = D(train_mask);
-        test_data  = D(test_mask);
-        %training of the GPFA
-        [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,dims(idim),...
-                                                 'bin_width', bin_width);
+    train_mask = ~test_mask;
 
-        %Posterior of test data given the trained model
-        [traj, ll_te] = exactInferenceWithLL(test_data, params,'getLL',1);
-        % orthogonalize the trajectories
-        [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
-        traj = segmentByTrial(traj, Xorth, 'data');
+    train_data = D(train_mask);
+    test_data  = D(test_mask);
+    %training of the GPFA
+    [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,zDim,...
+                                             'bin_width', bin_width);
 
-        %Validation with LNO
-        cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
-                                  (test_data,params,idim));
-        cvdata       = cell2mat(cv_gpfa_cell(7,:));
-        mse_fold     = sum(sum((cvdata-[test_data.data]).^2));
+    %Posterior of test data given the trained model
+    [traj, ll_te] = exactInferenceWithLL(test_data, params,'getLL',1);
+    % orthogonalize the trajectories
+    [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
+    traj = segmentByTrial(traj, Xorth, 'data');
 
-        mse(idim, ifold) = mse_fold;
-        ll(idim, ifold) = ll_te;
-        paramsGPFA{idim, ifold} = params;
-        orth_traje{idim, ifold} = traj;
-        fprintf('Bin %d, Dimension %d, fold %d',1000*bin_sizes(ibin),idim, ifold)
-    end        
-end
+    %Validation with LNO
+    cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
+                              (test_data,params,2:2:zDim));
+    
+    mse_fold = [];                      
+    for dim = length(cv_gpfa_cell):-1:7
+        cvdata          = cell2mat(cv_gpfa_cell(dim,:));
+        mse_fold(end+1) = sum(sum((cvdata-[test_data.data]).^2));
+    end
+    
+
+    mse(ifold, : ) = mse_fold;
+    paramsGPFA{ifold} = params;
+    fprintf('Trained/validated fold %d\n',ifold)
+    clear train_data test_data
+end        
+
 % best dimension and best across folds
 [~, foldmax_te] = max(sum(ll));
 [~, imax_te] = max(ll(:,foldmax_te));

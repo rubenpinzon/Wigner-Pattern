@@ -428,3 +428,5 @@ def raster(cells, title=''):
     plt.xlabel('Samples')
     plt.ylabel('Cell Num.')
     plt.title(title)
+    plt.show()
+    return fig

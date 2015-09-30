@@ -167,13 +167,8 @@ function [estParams, seq, LL, iterTime] = myem_mod(currentParams, seq, varargin)
     end
 
     % Display the most recent likelihood that was evaluated
-    if verbose
-      if getLL
-        fprintf('       lik %g (%.1f sec)\n', LLi, tEnd);
-      
-      end
-    end
     
+    fprintf('       lik %g (%.1f sec)\n', LLi, toc);
     % Verify that likelihood is growing monotonically
     if i<=2
       LLbase = LLi;

@@ -9,7 +9,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 1;
+animal          = 4;
 obj             = load(files{animal});
 clusters        = obj.Spike.totclu;
 laps            = obj.Laps.StartLaps(obj.Laps.StartLaps~=0); %@1250 Hz

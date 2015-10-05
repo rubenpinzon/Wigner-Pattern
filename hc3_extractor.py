@@ -1,5 +1,5 @@
 __author__ = 'ruben'
-__doc__ = 'Takes the .spk .clu .whl files of the HC databases and convet them to a unified file .mat, npy'
+__doc__ = 'Takes the .spk .clu .whl files of the HC databases and convert them to a unified file .mat, npy'
 
 import os
 import numpy as np
@@ -12,7 +12,7 @@ def update_axis(fig):
     for i in range(n):
         fig.axes[i].change_geometry(n + 1, 1, i + 1)
     plt.subplots_adjust(hspace=0.01)
-    ax = fig.add_subplot(n+1, 1, n+1)
+    ax = fig.add_subplot(n + 1, 1, n + 1)
     return ax
 
 
@@ -37,7 +37,6 @@ def raster(cells, title='', fig=None):
     plt.ylabel('Cell Num.')
     plt.title(title)
 
-
     return fig
 
 
@@ -51,19 +50,25 @@ def get_files(folder_base):
 
     pattern_folder = ['.clu', '.res']
     hc_data = dict()
+    files = sorted(os.listdir(folder_base), key=lambda x: x[-1])
+
     for reg in pattern_folder:
         values = list()
-        for case in os.listdir(folder_base):
+        max_clu = 0
+        for case in files:
             if case.__contains__(reg):
                 data = np.loadtxt(os.path.join(folder_base, case))
                 if reg == '.clu':
-                    values.extend(data[1:])
+                    values.extend(data[1:] + max_clu)
+                    max_clu = max(values)
+                    print max(values), data[0], case
+
                 else:
                     values.extend(data)
         hc_data[reg] = values
 
-    assert len(hc_data['.clu']) == len(hc_data['.res']), "Number of .clu and .res files should be equal. " \
-                                                         "Check documentation of the hc database"
+    assert len(hc_data['.clu']) == len(hc_data['.res']), "Number of .clu {} and .res {} files should be equal.".format(
+        len(hc_data['.clu']), len(hc_data['.res']))
     # organize according to cluster number in ascended order
     data = [(t, c) for t, c in zip(hc_data['.res'], hc_data['.clu'])]
     data = sorted(data, key=lambda x: x[1])
@@ -79,7 +84,7 @@ def get_files(folder_base):
         spk_cells.append(spks)
         events += len(spks)
 
-    #TODO: to extract EEG has to read the XML file to know number of channels, int16
+    # TODO: to extract EEG has to read the XML file to know number of channels, int16
     found = False
     eeg = list()
     for case in os.listdir(folder_base):
@@ -96,7 +101,7 @@ def get_files(folder_base):
 
 
 if __name__ == '__main__':
-    folder_base = '/media/bigdata/hc-3/ec012ec.11/ec012ec.188'
+    folder_base = '/media/bigdata/hc-3/ec013.15/ec013.157'
     spikes, eeg = get_files(folder_base)
     # fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
     # ax = fig.add_subplot(111)

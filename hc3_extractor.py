@@ -23,16 +23,16 @@ def raster(cells, title='', fig=None):
     :param cells: list (N x 1) containing spk times
 
     """
-    space = 0
     if fig is None:
         fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
         ax = fig.add_subplot(111)
     else:
         ax = update_axis(fig)
 
-    for n in range(len(cells)):
-        ax.plot(cells[n], np.ones(len(cells[n])) + space, '|')
-        space += 1
+    for c in np.unique(cells[:, 1]):
+        spks = [x[0] for x in cells if x[1] == c]
+        ax.plot(spks, np.ones(len(spks)) * c, '|')
+
     plt.xlabel('Samples')
     plt.ylabel('Cell Num.')
     plt.title(title)
@@ -47,42 +47,17 @@ def get_files(folder_base):
     :param folder_base: the main folder containing the hC database files
     :return: spk_cells: [n_cells, :] spike times for each cell
      """
+    found = False
+    spk_cells = []
+    for case in os.listdir(folder_base):
+        if case.__contains__('_spikes'):
+            found = True
+            spk_cells = np.loadtxt(os.path.join(folder_base, case))
+            print 'Spikes file with {} samples'.format(len(spk_cells))
+            break
 
-    pattern_folder = ['.clu', '.res']
-    hc_data = dict()
-    files = sorted(os.listdir(folder_base), key=lambda x: x[-1])
-
-    for reg in pattern_folder:
-        values = list()
-        max_clu = 0
-        for case in files:
-            if case.__contains__(reg):
-                data = np.loadtxt(os.path.join(folder_base, case))
-                if reg == '.clu':
-                    values.extend(data[1:] + max_clu)
-                    max_clu = max(values)
-
-                else:
-                    values.extend(data)
-        hc_data[reg] = values
-
-    assert len(hc_data['.clu']) == len(hc_data['.res']), "Number of .clu {} and .res {} files should be equal.".format(
-        len(hc_data['.clu']), len(hc_data['.res']))
-    # organize according to cluster number in ascended order
-    data = [(t, c) for t, c in zip(hc_data['.res'], hc_data['.clu'])]
-    data = sorted(data, key=lambda x: x[1])
-
-    n_cells = int(max(hc_data['.clu']))
-    assert n_cells != 0, 'No clusters found including clusters artifact and noise clusters (0 & 1)'
-    spk_cells = list()
-    # Removes clusters artifact and noise clusters (0 & 1)
-    for c in range(2, n_cells + 1):
-        # spikes in milliseconds divide by 20
-        spks = [x[0] / 20 for x in data if x[1] == c]
-        if len(spks) != 0:
-            spk_cells.append(spks)
-
-    print '{} cells found of which {} are non-silent'.format(n_cells, len(spk_cells))
+    if not found:
+        print 'Spike file not found'
 
     found = False
     eeg = []
@@ -117,8 +92,9 @@ if __name__ == '__main__':
     fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
     ax = fig.add_subplot(111)
     time = np.linspace(0, len(eeg) / 1.25, len(eeg))
-    ax.plot(time, eeg/50)
+    ax.plot(time, eeg / 50)
     ax.plot(time, pos)
-
     fig = raster(spikes, fig=fig)
     plt.show()
+
+# TODO: get eh inhibitory neurons out using the Map variable from LoadCluRes.m

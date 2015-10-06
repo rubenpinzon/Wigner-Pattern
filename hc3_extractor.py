@@ -12,7 +12,7 @@ def update_axis(fig):
     for i in range(n):
         fig.axes[i].change_geometry(n + 1, 1, i + 1)
     plt.subplots_adjust(hspace=0.01)
-    ax = fig.add_subplot(n + 1, 1, n + 1)
+    ax = fig.add_subplot(n + 1, 1, n + 1, sharex=fig.axes[n - 1])
     return ax
 
 
@@ -61,7 +61,6 @@ def get_files(folder_base):
                 if reg == '.clu':
                     values.extend(data[1:] + max_clu)
                     max_clu = max(values)
-                    print max(values), data[0], case
 
                 else:
                     values.extend(data)
@@ -75,36 +74,51 @@ def get_files(folder_base):
 
     n_cells = int(max(hc_data['.clu']))
     assert n_cells != 0, 'No clusters found including clusters artifact and noise clusters (0 & 1)'
-    print '{} cells found'.format(n_cells)
     spk_cells = list()
-    events = 0
     # Removes clusters artifact and noise clusters (0 & 1)
     for c in range(2, n_cells + 1):
-        spks = [x[0] for x in data if x[1] == c]
-        spk_cells.append(spks)
-        events += len(spks)
+        # spikes in milliseconds divide by 20
+        spks = [x[0] / 20 for x in data if x[1] == c]
+        if len(spks) != 0:
+            spk_cells.append(spks)
 
-    # TODO: to extract EEG has to read the XML file to know number of channels, int16
+    print '{} cells found of which {} are non-silent'.format(n_cells, len(spk_cells))
+
     found = False
-    eeg = list()
+    eeg = []
     for case in os.listdir(folder_base):
-        if case.__contains__('.eeg'):
+        if case.__contains__('_eeg'):
             found = True
-            eeg.append(np.fromfile(os.path.join(folder_base, case), dtype=np.int16))
-            print 'EEG file with {} samples'.format(len(eeg[0]))
+            eeg = np.loadtxt(os.path.join(folder_base, case))
+            print 'EEG file with {} samples'.format(len(eeg))
             break
 
     if not found:
         print 'eeg file not found'
 
-    return spk_cells, eeg
+    found = False
+    pos = []
+    for case in os.listdir(folder_base):
+        if case.__contains__('_posX'):
+            found = True
+            pos = np.loadtxt(os.path.join(folder_base, case))
+            print 'Pos file with {} samples'.format(len(eeg))
+            break
+
+    if not found:
+        print 'pos file not found'
+
+    return spk_cells, eeg, pos
 
 
 if __name__ == '__main__':
-    folder_base = '/media/bigdata/hc-3/ec013.15/ec013.157'
-    spikes, eeg = get_files(folder_base)
-    # fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
-    # ax = fig.add_subplot(111)
-    # ax.plot(eeg)
-    fig = raster(spikes, fig=None)
+    folder_base = '/media/bigdata/hc-3/ec013.15/ec013.156'
+    spikes, eeg, pos = get_files(folder_base)
+    fig = plt.figure(frameon=False, figsize=(9, 7), dpi=80, facecolor='w', edgecolor='k')
+    ax = fig.add_subplot(111)
+    time = np.linspace(0, len(eeg) / 1.25, len(eeg))
+    ax.plot(time, eeg/50)
+    ax.plot(time, pos)
+
+    fig = raster(spikes, fig=fig)
     plt.show()

@@ -65,21 +65,22 @@ def Describe(dbFile):
 
 if __name__ == "__main__":
     dbFile = '/media/bigdata/hc-3/hc3-metadata-tables/hc3-tables.db'
-    basep = dbFile.split('/hc3-tables.db')
     cursor, connection = Describe(dbFile)
+    experiment = 'ec013.15'
+    basep = '/media/bigdata/hc-3/' + experiment
 
-    linear_query = "SELECT cellType, region FROM cell WHERE topdir='ec013.15'"
+    linear_query = 'SELECT cellType, region, ele, clu FROM cell WHERE topdir={!r}'.format(experiment)
     cursor.execute(linear_query)
 
     cell_type = cursor.fetchall()
 
     print '{} Cells found'.format(len(cell_type))
 
-    with open(basep[0] + "/isIntern.txt", "w") as text_f:
-        text_f.write("cellId\tisIntern?\tregion\n")
+    with open(basep + "/isIntern.txt", "w") as text_f:
+        text_f.write("cellId\tisIntern?\tele\tclu\tregion\n")
         for idx, i in enumerate(cell_type):
             t = 1 if i[0] == 'i' else 0
-            text_f.write("{}\t{}\t{}\n".format(idx + 1, t, i[1]))
+            text_f.write("{}\t{}\t{}\t{}\t{}\n".format(idx + 1, t, i[2], i[3], i[1]))
 
     print('File saved')
     cursor.close()

@@ -9,7 +9,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 4;
+animal          = 6;
 obj             = load(files{animal});
 clusters        = obj.Spike.totclu;
 laps            = obj.Laps.StartLaps(obj.Laps.StartLaps~=0); %@1250 Hz
@@ -185,7 +185,7 @@ for ilap = 1 : length(D)
 end
 
 %preallocating variables
-folds           = 3;
+folds           = 4;
 mask            = false(1,length(D)); % for cross validation
 test_mask       = mask;
 cv_trials       = randperm(length(D));

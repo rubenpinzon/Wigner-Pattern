@@ -19,13 +19,13 @@ function [gpfa_params, gpfa_traj, LL] = gpfa_mod(D,dims,varargin)
 % 
 
 startup_gpfa;  % run the script to set up MEX environment
-emMaxIters = 200;  % shown to work for most cases
-bin_width = 25; % 20ms at 1250 Hz in samples
-extra_opts = assignopts(who,varargin);
+emMaxIters      = 200;  % shown to work for most cases
+bin_width       = 25; % 20ms at 1250 Hz in samples
+extra_opts      = assignopts(who,varargin);
 
 % Set maxIters option
 if nargin < 3
-    emMaxIters = 500;
+    emMaxIters = 200;
 end
 gpfa_params     = [];
 gpfa_traj       = [];

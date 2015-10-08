@@ -80,9 +80,7 @@ function [estParams, seq, LL, iterTime] = myem_mod(currentParams, seq, varargin)
   % Loop once for each iteration of EM algorithm
   
 
-  for i = 1:emMaxIters
-    
-     
+  for i = 1:emMaxIters   
     
   
     rand('state', i);
@@ -168,7 +166,7 @@ function [estParams, seq, LL, iterTime] = myem_mod(currentParams, seq, varargin)
 
     % Display the most recent likelihood that was evaluated
     
-    fprintf('       lik %g (%.1f sec)\n', LLi, toc);
+    fprintf('Iter %d  :  lik %g (%.1f sec)\n',i, LLi, toc);
     % Verify that likelihood is growing monotonically
     if i<=2
       LLbase = LLi;

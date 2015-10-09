@@ -1,4 +1,4 @@
-function D=segment(D, bin_size, Fs, min_firing)
+function [D,keep_neurons]=segment(D, bin_size, Fs, min_firing)
 %SEGMENT remove low firing rate neurons and segments in non-overlapping
 %        windows
 %

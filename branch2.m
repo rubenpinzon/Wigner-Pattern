@@ -107,7 +107,7 @@ bin_size        = 0.02;  %20 ms
 zDim            = 10;    % Target latent dimensions
 results(1).bin  = bin_size;
 min_firing      = 1;
-D               = segment(SpkRun_DH, bin_size, Fs, min_firing);
+[D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing);
 [D_left, D_right] = split_trails(D);
 conditions      = {'_left', '_right', ''};
 
@@ -118,7 +118,7 @@ for s = 1 : length(conditions)
     Data = eval(sprintf('D%s',conditions{s}));
     %preallocating cross validation variables, two folds
     
-    folds           = 2;
+    folds           = 3;
     mask            = false(1,length(Data)); % for cross validation
     cv_trials       = randperm(length(Data));
     fold_indx       = floor(linspace(1,length(Data)+1, folds+1));
@@ -165,11 +165,83 @@ for s = 1 : length(conditions)
     result.cv_trials = cv_trials;
     result.foldidx = fold_indx;
     
-    eval(sprintf('result_D%s = ',conditions{s}))
+    eval(sprintf('result_D%s = result',conditions{s}))
     
     clear result params* mse like
     
 end
+save([roots{animal} '_branch2_results.mat'],...
+    'result_D', 'result_D_left', 'result_D_right', 'D')
+
+%% %%%%%%%%show orthogonalized latent variables:%%%%%%%%%%%%%%%%%%%%
+
+for s = 1 : length(conditions)
+    
+    Data            = eval(sprintf('D%s',conditions{s}));
+    Result          = eval(sprintf('result_D%s;',conditions{s}));
+    mask            = false(1,length(Data)); % for cross validation
+    cv_trials       = Result.cv_trials;
+    fold_indx       = Result.foldidx;
+    
+    
+    for ifold = 1 : folds  % two-fold cross-validation        
+        % prepare masks:
+        % test_mask isolates a single fold, train_mask takes the rest
+        test_mask       = mask;
+        test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+        test_data  = Data(test_mask);
+        %Posterior of test data given the trained model
+        [traj, ll_te] = exactInferenceWithLL(test_data, Result.params{ifold},'getLL',1);
+        % orthogonalize the trajectories4
+        [Xorth, Corth] = orthogonalize([traj.xsm], Result.params{ifold}.C);
+        T              = [0 cumsum([test_data.T])];
+        
+        figure(10)
+        set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
+        color = jet(length(traj));
+        start_traj = []; end_traj = [];
+        for ilap = 1 : length(traj)
+           lap_t = T(ilap)+1:T(ilap+1);
+           
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
+           plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
+           plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
+           
+           start_traj(ilap, :) = Xorth(1:3,lap_t(1));
+           end_traj(ilap, :) = Xorth(1:3,lap_t(end));
+        end
+        ellipse_eig(end_traj(:,1:2), 3, [1, 0, 0])
+        ellipse_eig(end_traj(:,2:3), 6,[1, 0, 0])
+        ellipse_eig(end_traj(:,[1,3]), 9,[1, 0, 0])
+        ellipse_eig(start_traj(:,1:2), 3, [0, 0, 1])
+        ellipse_eig(start_traj(:,2:3), 6,[0, 0, 1])
+        ellipse_eig(start_traj(:,[1,3]), 9,[0, 0, 1])
+        subplot(3,3,3)
+        text(-0.8, -0.2, 'start','color','b')
+        text(-0.3, -0.5, 'end','color','r')
+        title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold));        
+        print(gcf,[roots{animal} sprintf('x_orth_cond%s(fold%d).png',conditions{s},ifold)],'-dpng')
+        close gcf
+        
+%         figure(2)
+%         for dim = 1 : 10
+%             subplot(5,2,dim)
+%             plot(Xorth(dim,:)), hold on
+%             xlim([0 length(Xorth(dim,:))])
+%             ylim([-1 1])
+%             ylabel(sprintf('X_%d',dim))
+%         end
+        
+    end    
+    title_span(gcf,sprintf('Condition %s (Two folds)',conditions{s}(2:end)));
+    
+    d_diff = sqrt(sum((Result.params{1}.d - Result.params{2}.d).^2));
+    C_diff = sqrt(sum((Result.params{1}.Corth - Result.params{2}.Corth).^2));
+    R_diff = sqrt(sum((diag(Result.params{1}.R) - diag(Result.params{2}.R)).^2));    
+        
+end
+
 
 %% =======================================================================%
 %======== (1) Get SPWs in the reward or wheel area       =================%
@@ -177,21 +249,62 @@ end
 
 markers = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
 
-plot(eeg./max(eeg),'color',[0.2, 0.2, 0.2]), hold on
+plot(eeg./max(eeg),'color',[0.8, 0.8, 0.8]), hold on
 plot(0.08*mazesect-0.5,'b')
 ylim([-0.6 0.6])
 markers = load([roots{animal} '_spws.txt']);
 plot(repmat(markers(:,1),1,2),ylim,'r')
 plot(repmat(markers(:,2),1,2),ylim,'c')
-plot(0.1*data.Laps.TrialType,'k')
+plot(0.1*data.Laps.TrialType,'r')
 
 spw_tag = {'after_left', 'after_right', 'after_left_error', 'after_right_error'};
-
+color   = jet(4);
 for sp = 1 : length(markers)   
-    spw_type(sp) = data.Laps.TrialType(ceil(markers(sp,1)));   
+    spw_type{sp}            = spw_tag{data.Laps.TrialType(ceil(markers(sp,1)))+1};
+    color_spw(sp,:)         = color(data.Laps.TrialType(ceil(markers(sp,1)))+1,:);
+    %spikes during the SPW
+    
+    idx_run                 = ceil(markers(sp,1):markers(sp,2));
+    spw_len(sp)            = (idx_run(end)-idx_run(1))/Fs;
+    cnt = 1;
+    %sect 1:enter, 6:exit
+    for neu=1:n_cells
+        if isIntern(neu)==0
+            idx = spk{neu}>=idx_run(1) & spk{neu}<=idx_run(end);
+            %aligned to the start of the section
+            SpkSPW{sp,cnt} = spk{neu}(idx) - idx_run(1) + 1;
+            cnt = cnt +  1;
+            plot(repmat(spk{neu}(idx),1,2)', repmat(0.01*[neu neu+0.9],length(spk{neu}(idx)),1)', 'linewidth',2)
+        end
+    end
 end
 
-%get spike events from each SPWs
 
+SpkSPW_DH = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
+                     spw_type, color_spw, 'spw', 0);
 
+[D,keep_cell]   = segment(SpkSPW_DH, 0.002, Fs, 0.01); %2ms bin size
+D               = filter_condition(D, 'after_left');
+[traj, ll_te]   = exactInferenceWithLL(D, result_D.params{ifold},'getLL',1);
 
+[Xorth, Corth] = orthogonalize([traj.xsm], result_D.params{ifold}.C);
+T              = [0 cumsum([D.T])];
+        
+figure(1)
+set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
+color = jet(length(traj));
+start_traj = []; end_traj = [];
+for ilap = 1 : length(traj)
+   lap_t = T(ilap)+1:T(ilap+1);
+   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
+
+   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
+   plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
+   plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
+
+   start_traj(ilap, :) = Xorth(1:3,lap_t(1));
+   end_traj(ilap, :) = Xorth(1:3,lap_t(end));
+end
+
+title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (SPW) 2 ms bin','after_left'));        
+print(gcf,[roots{animal} sprintf('x_orth_cond%s(SPW)2ms.png','after_left')],'-dpng')

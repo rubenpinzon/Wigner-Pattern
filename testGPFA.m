@@ -14,7 +14,6 @@ model = model.fit(Y, grd.p, 'hist');
 % model = model.fit(Y, grd.p, S);
 [model, Xest] = model.normFactors(Y);
 
-
 %% diagnostic plots
 cc = model.C' * grd.C;
 [~, ndx] = max(abs(cc));

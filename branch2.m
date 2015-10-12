@@ -175,6 +175,9 @@ save([roots{animal} '_branch2_results.mat'],...
 
 %% %%%%%%%%show orthogonalized latent variables:%%%%%%%%%%%%%%%%%%%%
 
+load([roots{animal} '_branch2_results.mat'])
+savefig = 0;
+
 for s = 1 : length(conditions)
     
     Data            = eval(sprintf('D%s',conditions{s}));
@@ -198,41 +201,34 @@ for s = 1 : length(conditions)
         
         figure(10)
         set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
+
         color = jet(length(traj));
         start_traj = []; end_traj = [];
         for ilap = 1 : length(traj)
            lap_t = T(ilap)+1:T(ilap+1);
            
-           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
-           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
-           plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
-           plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},[0.8 0.8 0.8])           
+%            plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
+%            plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
+%            plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
            
            start_traj(ilap, :) = Xorth(1:3,lap_t(1));
-           end_traj(ilap, :) = Xorth(1:3,lap_t(end));
+           end_traj(ilap, :)   = Xorth(1:3,lap_t(end));
         end
-        ellipse_eig(end_traj(:,1:2), 3, [1, 0, 0])
-        ellipse_eig(end_traj(:,2:3), 6,[1, 0, 0])
-        ellipse_eig(end_traj(:,[1,3]), 9,[1, 0, 0])
-        ellipse_eig(start_traj(:,1:2), 3, [0, 0, 1])
-        ellipse_eig(start_traj(:,2:3), 6,[0, 0, 1])
-        ellipse_eig(start_traj(:,[1,3]), 9,[0, 0, 1])
+%         ellipse_eig(end_traj(:,1:2), 3, [1, 0, 0])
+%         ellipse_eig(end_traj(:,2:3), 6,[1, 0, 0])
+%         ellipse_eig(end_traj(:,[1,3]), 9,[1, 0, 0])
+%         ellipse_eig(start_traj(:,1:2), 3, [0, 0, 1])
+%         ellipse_eig(start_traj(:,2:3), 6,[0, 0, 1])
+%         ellipse_eig(start_traj(:,[1,3]), 9,[0, 0, 1])
         subplot(3,3,3)
-        text(-0.8, -0.2, 'start','color','b')
-        text(-0.3, -0.5, 'end','color','r')
-        title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold));        
-        print(gcf,[roots{animal} sprintf('x_orth_cond%s(fold%d).png',conditions{s},ifold)],'-dpng')
-        close gcf
-        
-%         figure(2)
-%         for dim = 1 : 10
-%             subplot(5,2,dim)
-%             plot(Xorth(dim,:)), hold on
-%             xlim([0 length(Xorth(dim,:))])
-%             ylim([-1 1])
-%             ylabel(sprintf('X_%d',dim))
-%         end
-        
+%         text(-0.8, -0.2, 'start','color','b')
+%         text(-0.3, -0.5, 'end','color','r')
+        if savefig
+            print(gcf,[roots{animal} sprintf('x_orth_cond%s(fold%d).png',conditions{s},ifold)],'-dpng')
+            title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold));        
+            close gcf
+        end
     end    
     title_span(gcf,sprintf('Condition %s (Two folds)',conditions{s}(2:end)));
     
@@ -280,17 +276,17 @@ for sp = 1 : length(markers)
 end
 
 
-SpkSPW_DH = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
+SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
                      spw_type, color_spw, 'spw', 0);
 
-[D,keep_cell]   = segment(SpkSPW_DH, 0.002, Fs, 0.01); %2ms bin size
-D               = filter_condition(D, 'after_left');
-[traj, ll_te]   = exactInferenceWithLL(D, result_D.params{ifold},'getLL',1);
+D               = segment(SpkSPW_DH, 0.02, Fs, 0.01); %2ms bin size
+D               = filter_condition(D, 'after_left_error');
+[traj, ll_te]   = exactInferenceWithLL(D, result_D_left.params{ifold},'getLL',1);
 
-[Xorth, Corth] = orthogonalize([traj.xsm], result_D.params{ifold}.C);
+[Xorth, Corth] = orthogonalize([traj.xsm], result_D_left.params{ifold}.C);
 T              = [0 cumsum([D.T])];
         
-figure(1)
+figure(10)
 set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
 color = jet(length(traj));
 start_traj = []; end_traj = [];
@@ -298,9 +294,9 @@ for ilap = 1 : length(traj)
    lap_t = T(ilap)+1:T(ilap+1);
    plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
 
-   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
-   plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
-   plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
+%    plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
+%    plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
+%    plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
 
    start_traj(ilap, :) = Xorth(1:3,lap_t(1));
    end_traj(ilap, :) = Xorth(1:3,lap_t(end));

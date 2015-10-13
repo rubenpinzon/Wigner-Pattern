@@ -75,7 +75,7 @@ currentParams = startParams;
     % Extract orthonormalized neural trajectories for original, unsegmented trials
     % using learned parameters
 
-    [gpfa_traj, LL] = exactInferenceWithLL(D, gpfa_params,'getLL',1);
+    [gpfa_traj, LL_last] = exactInferenceWithLL(D, gpfa_params,'getLL',1);
 
     
     % orthogonalize the trajectories

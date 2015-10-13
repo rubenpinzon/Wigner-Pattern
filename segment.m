@@ -31,7 +31,7 @@ for ilap = 1 : length(D)
     for t = 1:T
       iStart        = bin_width * (t-1) + 1;
       iEnd          = bin_width * t;
-      seq.y(:,t)    = sum(D(ilap).data(:, iStart:iEnd), 2);
+      seq.y(:,t)    = sum(D(ilap).data(:, iStart:iEnd), 2)./bin_size;
     end
     %normalization with square root transform
     if useSqrt

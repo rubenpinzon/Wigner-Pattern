@@ -47,6 +47,7 @@ numLaps         = numel(laps)-1;
 typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
 color           = jet(numLaps+1);
+conditions      = {'_left', '_right', ''};
 
 %% =======================================================================%
 %==============   Extract Running Sections        ========================%
@@ -103,17 +104,16 @@ SpkRun_DH           = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
 %======== (1) Train on Left/Right arms separately        =================%
 %=========================================================================%
 
-bin_size        = 0.02;  %20 ms
+bin_size        = 0.04;  %20 ms
 zDim            = 10;    % Target latent dimensions
 results(1).bin  = bin_size;
 min_firing      = 1;
 [D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing);
 [D_left, D_right] = split_trails(D);
-conditions      = {'_left', '_right', ''};
-
+showpred        = true; %show the predicted and real firing rates
 
 % train separately left/right/all 
-for s = 1 : length(conditions)
+for s = 1 : 1%length(conditions)
     
     Data = eval(sprintf('D%s',conditions{s}));
     %preallocating cross validation variables, two folds
@@ -139,7 +139,7 @@ for s = 1 : length(conditions)
         % orthogonalize the trajectories4
         [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
         traj = segmentByTrial(traj, Xorth, 'data');
-
+% 
         %Validation with LNO
         cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
                                   (test_data,params,zDim));
@@ -151,8 +151,11 @@ for s = 1 : length(conditions)
            cvdata(:, T(i)+1:T(i+1)) = cell2mat(cv_gpfa_cell(7,:,i));
         end
         mse_fold        = sum(sum((cvdata-true_data).^2));
-       
-
+        
+        if showpred
+           plot_firing(cvdata, true_data, T)            
+        end
+        
         mse(ifold)  = mse_fold;
         like(ifold) = ll_tr;
         paramsGPFA{ifold} = params;
@@ -170,13 +173,13 @@ for s = 1 : length(conditions)
     clear result params* mse like
     
 end
-save([roots{animal} '_branch2_results.mat'],...
+save([roots{animal} '_branch2_results40ms.mat'],...
     'result_D', 'result_D_left', 'result_D_right', 'D')
 
 %% %%%%%%%%show orthogonalized latent variables:%%%%%%%%%%%%%%%%%%%%
 
-load([roots{animal} '_branch2_results.mat'])
-savefig = 0;
+load([roots{animal} '_branch2_results40ms.mat'])
+saveplot = false;
 
 for s = 1 : length(conditions)
     
@@ -207,28 +210,29 @@ for s = 1 : length(conditions)
         for ilap = 1 : length(traj)
            lap_t = T(ilap)+1:T(ilap+1);
            
-           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},[0.8 0.8 0.8])           
-%            plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
-%            plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
-%            plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
+           plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
+           plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
            
            start_traj(ilap, :) = Xorth(1:3,lap_t(1));
            end_traj(ilap, :)   = Xorth(1:3,lap_t(end));
         end
-%         ellipse_eig(end_traj(:,1:2), 3, [1, 0, 0])
-%         ellipse_eig(end_traj(:,2:3), 6,[1, 0, 0])
-%         ellipse_eig(end_traj(:,[1,3]), 9,[1, 0, 0])
-%         ellipse_eig(start_traj(:,1:2), 3, [0, 0, 1])
-%         ellipse_eig(start_traj(:,2:3), 6,[0, 0, 1])
-%         ellipse_eig(start_traj(:,[1,3]), 9,[0, 0, 1])
+        ellipse_eig(end_traj(:,1:2), 3, [1, 0, 0])
+        ellipse_eig(end_traj(:,2:3), 6,[1, 0, 0])
+        ellipse_eig(end_traj(:,[1,3]), 9,[1, 0, 0])
+        ellipse_eig(start_traj(:,1:2), 3, [0, 0, 1])
+        ellipse_eig(start_traj(:,2:3), 6,[0, 0, 1])
+        ellipse_eig(start_traj(:,[1,3]), 9,[0, 0, 1])
         subplot(3,3,3)
-%         text(-0.8, -0.2, 'start','color','b')
-%         text(-0.3, -0.5, 'end','color','r')
-        if savefig
+        text(-0.8, -0.2, 'start','color','b')
+        text(-0.3, -0.5, 'end','color','r')
+        if saveplot
             print(gcf,[roots{animal} sprintf('x_orth_cond%s(fold%d).png',conditions{s},ifold)],'-dpng')
-            title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold));        
-            close gcf
+            title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold)); 
+            
         end
+        close gcf
     end    
     title_span(gcf,sprintf('Condition %s (Two folds)',conditions{s}(2:end)));
     
@@ -244,11 +248,12 @@ end
 %=========================================================================%
 
 markers = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
+updateGP = true;
+
 
 plot(eeg./max(eeg),'color',[0.8, 0.8, 0.8]), hold on
 plot(0.08*mazesect-0.5,'b')
 ylim([-0.6 0.6])
-markers = load([roots{animal} '_spws.txt']);
 plot(repmat(markers(:,1),1,2),ylim,'r')
 plot(repmat(markers(:,2),1,2),ylim,'c')
 plot(0.1*data.Laps.TrialType,'r')
@@ -275,20 +280,45 @@ for sp = 1 : length(markers)
     end
 end
 
+%Parameters to used from trained models
+model            = result_D_left.params{ifold};
 
 SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
                      spw_type, color_spw, 'spw', 0);
 
-D               = segment(SpkSPW_DH, 0.02, Fs, 0.01); %2ms bin size
-D               = filter_condition(D, 'after_left_error');
-[traj, ll_te]   = exactInferenceWithLL(D, result_D_left.params{ifold},'getLL',1);
+D               = segment(SpkSPW_DH, 0.04, Fs, 0.01); %2ms bin size
+D               = filter_condition(D, 'after_left', 1);
+[traj, ll_te]   = exactInferenceWithLL(D, model,'getLL',1);
+[Xorth, Corth] = orthogonalize([traj.xsm], model.C);
 
-[Xorth, Corth] = orthogonalize([traj.xsm], result_D_left.params{ifold}.C);
 T              = [0 cumsum([D.T])];
+
+if updateGP
+    estParams      = update_gps(model, D);
+    [traj, ll_te]  = exactInferenceWithLL(D, estParams,'getLL',1);
+    [Xorth, Corth] = orthogonalize([traj.xsm], estParams.C);
+end
+
+if showpred
+%Validation with LNO
+    cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
+                              (D,estParams,zDim));
+
+    true_SPW       = [D.y];
+    T              = [0 cumsum([D.T])];
+    cvspw          = zeros(size(true_SPW));
+    for i = 1 : length(D)
+       cvspw(:, T(i)+1:T(i+1)) = cell2mat(cv_gpfa_cell(7,:,i));
+    end
+
+   plot_firing(cvspw, true_SPW, T)            
+end
+
         
+
 figure(10)
 set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
-color = jet(length(traj));
+color = hot(length(traj));
 start_traj = []; end_traj = [];
 for ilap = 1 : length(traj)
    lap_t = T(ilap)+1:T(ilap+1);

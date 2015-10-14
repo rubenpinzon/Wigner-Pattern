@@ -1,5 +1,5 @@
 __author__ = 'ruben'
-__doc__ = 'Creates synthetic place cells activity following a probabilistic approach with poisson distributions ' \
+__doc__ = 'Creates synthetic place cells activity following a probabilistic approach with Poisson distributions ' \
           'for the firing rates and Gaussian tuning curves. From https://github.com/nwilming/hpdecode.git' \
           'and Kechen Zhang et al. Interpreting Neuronal Population Activity by Reconstruction J of Neurophysiolog' \
           '1998'

@@ -5,12 +5,12 @@ __doc__ = 'Based on: Interpreting Neuronal Population Activity by Reconstruction
           '1017-. and code from https://github.com/nwilming/hpdecode.git'
 
 from numpy import *
-from scipy.stats import multivariate_normal, poisson
+from scipy.stats import norm, poisson, gamma
 import matplotlib.pyplot as plt
 import datetime as dt
 
 
-def place_field(pos, covariance, firing_rate=0.2, baseline=0.001):
+def place_field(xmax=100, firing_rate=0.1, baseline=0.0001):
     """
     Creates a 1D Gaussian place field with center pos and
     covariance matrix. The max is scaled to desired firing_rate.
@@ -18,36 +18,43 @@ def place_field(pos, covariance, firing_rate=0.2, baseline=0.001):
 
     :return pdf: Probability density function
     """
-    mv = multivariate_normal(pos, covariance)
-    scale_constant = mv.pdf(pos)
+    n_modes = floor(gamma.rvs(3, 0, 1))
+    if n_modes < 1.:
+        n_modes = 1
+    if n_modes > 4:
+        n_modes = 4
+
+    pos = random.uniform(1, xmax, n_modes)
+    var = random.uniform(1.5, xmax / 10, n_modes)
+
+    gauss_m = list()
+    for p, v in zip(pos, var):
+        mv = norm(p, v)
+        scale = mv.pdf(p)
+        gauss_m.append((mv, scale))
 
     def pdf(arena):
-        fr = firing_rate * mv.pdf(arena) / scale_constant + baseline
-        # try:
-        #     fr[fr > firing_rate] = firing_rate
-        # except TypeError:
-        #     if fr > firing_rate:
-        #         fr = firing_rate
+        prob = 0.
+        for g in gauss_m:
+            prob += g[0].pdf(arena) / g[1]
+        prob /= n_modes
+        fr = firing_rate * prob + baseline
         return fr
 
     return pdf
 
 
-def setup(n_objects=100):
+def setup(n_p_fields=100, xmax=100):
     """
     Setup a linear track with dimmensions 1 x 100 mm
-    :param n_objects: number of place fields
+    :param n_p_fields: number of place fields
     """
-    xmax = 100
-    pfields = list()
-    centers = list()
-    for f in range(n_objects):
-        origin = random.normal(xmax / 2, xmax / 2)
-        covariance = random.normal(loc=20., scale=8., size=1)
-        pfields.append(place_field(origin, covariance))
-        centers.append(origin)
 
-    return pfields, centers
+    p_fields = list()
+    for f in range(n_p_fields):
+        p_fields.append(place_field(xmax))
+
+    return p_fields
 
 
 def simulate_spikes(tuning_curve, rx):
@@ -81,7 +88,6 @@ def update_figure(fig, **kwargs):
     else:
         ax = fig.add_subplot(n + 1, 1, n + 1)
 
-
     return ax
 
 
@@ -110,38 +116,43 @@ def sample(pos, time, p_fields, fig=None, **kwargs):
 
 if __name__ == '__main__':
 
-        basepath = '/media/bigdata/synthetic/'
-        show = True
-        n_cells = 50
-        p_fields, centers = setup(n_cells)
+    basepath = '/media/bigdata/synthetic/'
+    show = True
+    n_cells = 50
+    p_fields = setup(n_cells)
+    n_laps = 50
 
-        speed = 5.  # cm/s
-        max_pos = 80
-        t_taken = max_pos / (speed * 10)
-        Fs = 1000
-        time = linspace(0, t_taken, int(t_taken * Fs))
-        pos_rat = linspace(0, max_pos, int(t_taken * Fs))
+    speed = 5.  # cm/s
+    max_pos = 80
+    t_taken = max_pos / (speed * 10)
+    Fs = 1000
+    time = linspace(0, t_taken, int(t_taken * Fs))
+    pos_rat = max_pos / (1 + exp(-2*time+1.))
 
-        # Show place fields distribution
-        if show:
-            fig = plt.figure(frameon=False, figsize=(9, 7), dpi=100, facecolor='w', edgecolor='k')
-            ax = fig.add_subplot(111)
-            plt.subplots_adjust(hspace=0.5)
+    # Show place fields distribution
+    if show:
+        fig = plt.figure(frameon=False, figsize=(9, 7), dpi=100, facecolor='w', edgecolor='k')
+        ax = fig.add_subplot(111)
+        plt.subplots_adjust(hspace=0.5)
 
-        for p in p_fields:
-            ax.plot(p(range(0, max_pos)))
-        plt.ylabel('Place fields')
-        plt.xlabel('Linear track (mm)')
+    for p in p_fields:
+        ax.plot(p(range(0, max_pos)))
+    plt.ylabel('Place fields')
+    plt.xlabel('Linear track (mm)')
 
-        ax1 = update_figure(fig)
-        ax1.plot(time, pos_rat)
-        plt.ylabel('Position animal (mm)')
-        plt.xlabel('Time (s)')
-        ax2, spikes = sample(pos_rat, time, p_fields, fig, link=1)
-        plt.ylabel('Cell Num.')
-        plt.xlabel('Time')
+    ax1 = update_figure(fig)
+    ax1.plot(time, pos_rat)
+    plt.ylabel('Position animal (mm)')
+    plt.xlabel('Time (s)')
+    ax2, spikes = sample(pos_rat, time, p_fields, fig, link=1)
+    plt.ylabel('Cell Num.')
+    plt.xlabel('Time')
+    key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), 0)
+    fig.savefig(basepath + key + 'png')
 
-        key = 'spikes_{}_{}.'.format(n_cells, dt.date.today())
-        fig.savefig(basepath + key + 'png')
+    for n in range(n_laps):
+        _, spikes = sample(pos_rat, time, p_fields, fig=None)
+        key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), n)
         save_spks(spikes, basepath + key + 'txt')
-        plt.show()
+
+    plt.show()

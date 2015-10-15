@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import datetime as dt
 
 
-def place_field(xmax=100, firing_rate=0.1, baseline=0.0001):
+def place_field(xmax=100, firing_rate=0.01, baseline=0.0001):
     """
     Creates a 1D Gaussian place field with center pos and
     covariance matrix. The max is scaled to desired firing_rate.
@@ -23,7 +23,6 @@ def place_field(xmax=100, firing_rate=0.1, baseline=0.0001):
         n_modes = 1
     if n_modes > 4:
         n_modes = 4
-
     pos = random.uniform(1, xmax, n_modes)
     var = random.uniform(1.5, xmax / 10, n_modes)
 
@@ -101,6 +100,7 @@ def sample(pos, time, p_fields, fig=None, **kwargs):
         ax2 = update_figure(fig, **kwargs)
 
     all_spikes = list()
+    all_rates = list()
     for p, t in zip(pos, time):
         rates, obs_spikes = simulate_spikes(p_fields, p)
         for c, spks in enumerate(obs_spikes):
@@ -110,13 +110,18 @@ def sample(pos, time, p_fields, fig=None, **kwargs):
                 if fig:
                     ax2.plot(times, ones(spks) * c, '|', color='r')
                 all_spikes.extend(column_stack((times, cell)))
+        all_rates.append(rates)
 
-    return ax2, all_spikes
+    return ax2, all_spikes, all_rates
+
+
+def kern(x, xprime, variance=1.0, lengthscale=1.0):
+    return exp(variance * (xprime - x) / lengthscale)
 
 
 if __name__ == '__main__':
 
-    basepath = '/media/bigdata/synthetic/'
+    basepath = '/media/bigdata/synthetic/db3/'
     show = True
     n_cells = 50
     p_fields = setup(n_cells)
@@ -127,7 +132,16 @@ if __name__ == '__main__':
     t_taken = max_pos / (speed * 10)
     Fs = 1000
     time = linspace(0, t_taken, int(t_taken * Fs))
-    pos_rat = max_pos / (1 + exp(-2*time+1.))
+
+    # speed as a OU process
+    alpha = 1.0
+    lengthscale = 1
+    K = zeros((time.size, time.size))
+    for i in xrange(time.size):
+        for j in xrange(time.size):
+            K[i, j] = kern(time[i], time[j], variance=alpha, lengthscale=lengthscale)
+
+    plt.imshow(K, interpolation='none')
 
     # Show place fields distribution
     if show:
@@ -144,14 +158,14 @@ if __name__ == '__main__':
     ax1.plot(time, pos_rat)
     plt.ylabel('Position animal (mm)')
     plt.xlabel('Time (s)')
-    ax2, spikes = sample(pos_rat, time, p_fields, fig, link=1)
+    ax2, spikes, rates = sample(pos_rat, time, p_fields, fig, link=1)
     plt.ylabel('Cell Num.')
     plt.xlabel('Time')
     key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), 0)
     fig.savefig(basepath + key + 'png')
 
     for n in range(n_laps):
-        _, spikes = sample(pos_rat, time, p_fields, fig=None)
+        _, spikes, _ = sample(pos_rat, time, p_fields, fig=None)
         key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), n)
         save_spks(spikes, basepath + key + 'txt')
 

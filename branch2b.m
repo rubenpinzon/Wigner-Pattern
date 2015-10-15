@@ -9,10 +9,10 @@
 clc, close all; clear all;
 cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
-basepath        = '/media/bigdata/synthetic/';
+basepath        = '/media/bigdata/synthetic/db3/';
 pattern         = 'spikes_50_2015-10-15_lap*.txt';
 Fs              = 1000;
-T_real          = 1.6 * Fs; 
+T_real          = 1.610 * Fs; 
 
 %======Extraxt the spikes for each cell for each lap======================%
 
@@ -22,6 +22,7 @@ n_laps          = length(D);
 for ilap = 1 : n_laps 
    spikes   = load([basepath D(ilap).name]); 
    n_cells  = max(spikes(:,2)) + 1;
+   n_cells  = 50;
    T(ilap)  = 0; % for saving the lap duration
    
    %data structure for the GPFA
@@ -41,19 +42,20 @@ end
 
 bin_size        = 0.02;  %20 ms
 zDim            = 10;    % Target latent dimensions
-min_firing      = 1;
+min_firing      = 0.1;
 [D,keep_cell]   = segment(D, bin_size, Fs, min_firing);
-showpred        = false; %show the predicted and real firing rates
+showpred        = true; %show the predicted and real firing rates
 
 %%
 folds           = 3;
 mask            = false(1,length(D)); % for cross validation
 cv_trials       = randperm(length(D));
 fold_indx       = floor(linspace(1,length(D)+1, folds+1));
+saveplot        = true;
 
-DataHigh(D,'DimReduce')
+%DataHigh(D,'DimReduce')
 
-for ifold = 1 : folds  % two-fold cross-validation        
+for ifold = 1 : 1%folds  % two-fold cross-validation        
     % prepare masks:
     % test_mask isolates a single fold, train_mask takes the rest
     test_mask       = mask;
@@ -106,10 +108,10 @@ for ifold = 1 : folds  % two-fold cross-validation
         ellipse_eig(start_traj(:,2:3), 6,[0, 0, 1])
         ellipse_eig(start_traj(:,[1,3]), 9,[0, 0, 1])
         subplot(3,3,3)
-        text(-0.8, -0.2, 'start','color','b')
+        text(20, -0.2, 'start','color','b')
         text(-0.3, -0.5, 'end','color','r')
         if saveplot
-            print(gcf,[roots{animal} sprintf('x_orth_cond%s(fold%d).png',conditions{s},ifold)],'-dpng')
+            print(gcf,[basepath sprintf('x_orth_cond(fold%d).png',ifold)],'-dpng')
             title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold)); 
         end
     end

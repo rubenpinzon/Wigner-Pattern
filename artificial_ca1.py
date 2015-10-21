@@ -8,9 +8,10 @@ from numpy import *
 from scipy.stats import norm, poisson, gamma
 import matplotlib.pyplot as plt
 import datetime as dt
+import scipy.integrate as integral
 
 
-def place_field(xmax=100, firing_rate=0.01, baseline=0.0001):
+def place_field(xmax=100, firing_rate=0.1, baseline=0.0001):
     """
     Creates a 1D Gaussian place field with center pos and
     covariance matrix. The max is scaled to desired firing_rate.
@@ -116,32 +117,33 @@ def sample(pos, time, p_fields, fig=None, **kwargs):
 
 
 def kern(x, xprime, variance=1.0, lengthscale=1.0):
-    return exp(variance * (xprime - x) / lengthscale)
+    return exp(-variance * abs(x - xprime))
 
 
 if __name__ == '__main__':
 
-    basepath = '/media/bigdata/synthetic/db3/'
+    basepath = '/media/bigdata/synthetic/db7/'
     show = True
-    n_cells = 50
+    n_cells = 100
     p_fields = setup(n_cells)
-    n_laps = 50
-
+    n_laps = 20
     speed = 5.  # cm/s
     max_pos = 80
     t_taken = max_pos / (speed * 10)
     Fs = 1000
     time = linspace(0, t_taken, int(t_taken * Fs))
 
-    # speed as a OU process
-    alpha = 1.0
-    lengthscale = 1
+    # velocity as a OU process
+    mean_vel = speed * ones(time.size)
+    alpha = 5.0
     K = zeros((time.size, time.size))
     for i in xrange(time.size):
         for j in xrange(time.size):
-            K[i, j] = kern(time[i], time[j], variance=alpha, lengthscale=lengthscale)
+            K[i, j] = kern(time[i], time[j], variance=alpha)
 
     plt.imshow(K, interpolation='none')
+    vel_rat = random.multivariate_normal(mean_vel, K)
+    pos_rat = 10 * integral.cumtrapz(vel_rat, time, initial=0.)
 
     # Show place fields distribution
     if show:
@@ -156,6 +158,7 @@ if __name__ == '__main__':
 
     ax1 = update_figure(fig)
     ax1.plot(time, pos_rat)
+    ax1.plot(time, vel_rat)
     plt.ylabel('Position animal (mm)')
     plt.xlabel('Time (s)')
     ax2, spikes, rates = sample(pos_rat, time, p_fields, fig, link=1)

@@ -9,8 +9,8 @@
 clc, close all; clear all;
 cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
-basepath        = '/media/bigdata/synthetic/db3/';
-pattern         = 'spikes_50_2015-10-15_lap*.txt';
+basepath        = '/media/bigdata/synthetic/db6/';
+pattern         = 'spikes_*.txt';
 Fs              = 1000;
 T_real          = 1.610 * Fs; 
 
@@ -22,7 +22,7 @@ n_laps          = length(D);
 for ilap = 1 : n_laps 
    spikes   = load([basepath D(ilap).name]); 
    n_cells  = max(spikes(:,2)) + 1;
-   n_cells  = 50;
+   n_cells  = 99;
    T(ilap)  = 0; % for saving the lap duration
    
    %data structure for the GPFA
@@ -42,11 +42,11 @@ end
 
 bin_size        = 0.02;  %20 ms
 zDim            = 10;    % Target latent dimensions
-min_firing      = 0.1;
+min_firing      = 0.5;
 [D,keep_cell]   = segment(D, bin_size, Fs, min_firing);
 showpred        = true; %show the predicted and real firing rates
 
-%%
+%% ==================Using DataHigh Library==============================%%
 folds           = 3;
 mask            = false(1,length(D)); % for cross validation
 cv_trials       = randperm(length(D));
@@ -112,7 +112,7 @@ for ifold = 1 : 1%folds  % two-fold cross-validation
         text(-0.3, -0.5, 'end','color','r')
         if saveplot
             print(gcf,[basepath sprintf('x_orth_cond(fold%d).png',ifold)],'-dpng')
-            title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold)); 
+            title_span(gcf,sprintf('Neural Space (SVD ort1ho)(fold %d)', ifold)); 
         end
     end
     
@@ -128,5 +128,26 @@ result.like = like;
 result.cv_trials = cv_trials;
 result.foldidx = fold_indx;
 
+%% ======================Using Aecker Library=============================
+
+folds           = 3;
+mask            = false(1,length(D)); % for cross validation
+cv_trials       = randperm(length(D));
+fold_indx       = floor(linspace(1,length(D)+1, folds+1));
+saveplot        = true;
 
 
+for ifold = 1 : 1%folds  % two-fold cross-validation        
+    % prepare masks:
+    % test_mask isolates a single fold, train_mask takes the rest
+    test_mask       = mask;
+    test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+    train_mask = ~test_mask;
+    train_data = D(train_mask);
+    test_data  = D(test_mask);
+    
+    Y = reshape([train_data.y],[48, 80, numel(train_data)]);
+    model = GPFA('Tolerance', 1e-8, 'Verbose',true);
+    model = model.fit(Y, 10, 'hist');
+
+end

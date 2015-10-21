@@ -111,14 +111,14 @@ min_firing      = 1;
 [D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing);
 [D_left, D_right] = split_trails(D);
 showpred        = true; %show the predicted and real firing rates
-
+folds           = 3;
 % train separately left/right/all 
+%%
 for s = 1 : 1%length(conditions)
     
     Data = eval(sprintf('D%s',conditions{s}));
-    %preallocating cross validation variables, two folds
+    %preallocating cross validation variables, two folds    
     
-    folds           = 3;
     mask            = false(1,length(Data)); % for cross validation
     cv_trials       = randperm(length(Data));
     fold_indx       = floor(linspace(1,length(Data)+1, folds+1));
@@ -210,7 +210,7 @@ for s = 1 : length(conditions)
         for ilap = 1 : length(traj)
            lap_t = T(ilap)+1:T(ilap+1);
            
-           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},[0.8 0.8 0.8])           
            plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
            plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
            plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
@@ -250,7 +250,8 @@ end
 markers = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
 updateGP = true;
 
-
+figure(20)
+set(gcf, 'position', [0 1 1000 300], 'color', 'w')
 plot(eeg./max(eeg),'color',[0.8, 0.8, 0.8]), hold on
 plot(0.08*mazesect-0.5,'b')
 ylim([-0.6 0.6])
@@ -279,30 +280,33 @@ for sp = 1 : length(markers)
         end
     end
 end
-
+ylim([0 1.2])
 %Parameters to used from trained models
-model            = result_D_left.params{ifold};
+params          = result_D_right.params{ifold};
 
 SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
                      spw_type, color_spw, 'spw', 0);
 
 D               = segment(SpkSPW_DH, 0.04, Fs, 0.01); %2ms bin size
-D               = filter_condition(D, 'after_left', 1);
-[traj, ll_te]   = exactInferenceWithLL(D, model,'getLL',1);
-[Xorth, Corth] = orthogonalize([traj.xsm], model.C);
+D               = filter_condition(D, 'after_left_error', 2);
+% D               = D(20:30);
+[traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);
+[Xorth, Corth] = orthogonalize([traj.xsm], params.C);
 
 T              = [0 cumsum([D.T])];
 
+%retrained the GPs
 if updateGP
-    estParams      = update_gps(model, D);
-    [traj, ll_te]  = exactInferenceWithLL(D, estParams,'getLL',1);
-    [Xorth, Corth] = orthogonalize([traj.xsm], estParams.C);
+    [paramsUP,seq,ll]      = update_gps(params, D, 200);
+    [traj, ll_te]  = exactInferenceWithLL(D, paramsUP,'getLL',1);
+    [Xorth, Corth] = orthogonalize([traj.xsm], paramsUP.C);
 end
 
+%firing rates
 if showpred
 %Validation with LNO
     cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
-                              (D,estParams,zDim));
+                              (D,params,zDim));
 
     true_SPW       = [D.y];
     T              = [0 cumsum([D.T])];
@@ -318,18 +322,15 @@ end
 
 figure(10)
 set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
-color = hot(length(traj));
-start_traj = []; end_traj = [];
+color = jet(length(traj));
 for ilap = 1 : length(traj)
    lap_t = T(ilap)+1:T(ilap+1);
-   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
+   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1:9],{'X_1','X_2','X_3'},color(ilap,:))           
 
 %    plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
 %    plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
 %    plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
 
-   start_traj(ilap, :) = Xorth(1:3,lap_t(1));
-   end_traj(ilap, :) = Xorth(1:3,lap_t(end));
 end
 
 title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (SPW) 2 ms bin','after_left'));        

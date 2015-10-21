@@ -159,14 +159,15 @@ function [estParams, seq, LL, iterTime] = myem_mod(currentParams, seq, varargin)
       end
     end
     
-    tEnd     = toc;
     if nargout > 3
+        tEnd     = toc;
         iterTime = [iterTime tEnd];
     end
 
     % Display the most recent likelihood that was evaluated
-    
-    fprintf('Iter %d  :  lik %g (%.1f sec)\n',i, LLi, tEnd);
+    if getLL
+        fprintf('Iter %d  :  lik %g\n',i, LLi);
+    end
     % Verify that likelihood is growing monotonically
     if i<=2
       LLbase = LLi;

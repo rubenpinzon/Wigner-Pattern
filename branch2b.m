@@ -9,7 +9,7 @@
 clc, close all; clear all;
 cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
-basepath        = '/media/bigdata/synthetic/db6/';
+basepath        = '/media/bigdata/synthetic/db8/';
 pattern         = 'spikes_*.txt';
 Fs              = 1000;
 T_real          = 1.610 * Fs; 
@@ -22,7 +22,7 @@ n_laps          = length(D);
 for ilap = 1 : n_laps 
    spikes   = load([basepath D(ilap).name]); 
    n_cells  = max(spikes(:,2)) + 1;
-   n_cells  = 99;
+   %n_cells  = 99;
    T(ilap)  = 0; % for saving the lap duration
    
    %data structure for the GPFA
@@ -37,15 +37,17 @@ for ilap = 1 : n_laps
            T(ilap)          = max(T(ilap), max(spk{icell, ilap}));
            D(ilap).data(icell,floor(s*Fs)+2) = 1;
        end
-   end   
+   end
+   F(ilap).data = D(ilap).data;
+   F(ilap).condition = 'l_track';
 end
 
 bin_size        = 0.02;  %20 ms
 zDim            = 10;    % Target latent dimensions
-min_firing      = 0.5;
+min_firing      = 2;
 [D,keep_cell]   = segment(D, bin_size, Fs, min_firing);
 showpred        = true; %show the predicted and real firing rates
-
+%DataHigh(F,'DimReduce')
 %% ==================Using DataHigh Library==============================%%
 folds           = 3;
 mask            = false(1,length(D)); % for cross validation
@@ -53,7 +55,7 @@ cv_trials       = randperm(length(D));
 fold_indx       = floor(linspace(1,length(D)+1, folds+1));
 saveplot        = true;
 
-%DataHigh(D,'DimReduce')
+
 
 for ifold = 1 : 1%folds  % two-fold cross-validation        
     % prepare masks:

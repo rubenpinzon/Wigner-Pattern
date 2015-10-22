@@ -52,7 +52,7 @@ conditions      = {'_left', '_right', ''};
 %% =======================================================================%
 %==============   Extract Running Sections        ========================%
 %=========================================================================%
-debug           = 1; %to show diganostic plots
+debug           = false; %to show diganostic plots
 
 % Extract spks when the mouse is running and in the wheel to calculate
 for lap = 1:numLaps  
@@ -82,8 +82,9 @@ for lap = 1:numLaps
     trial{lap}                = typetrial{data.Laps.TrialType(laps(lap))};
     color_trial(lap,:)        = color(data.Laps.TrialType(laps(lap)),:);
 end
-figure(2), title('Position of animal per Lap in section Run')
 if debug
+   figure(2), title('Position of animal per Lap in section Run')
+
    figure(3)
    plot(1:numLaps,run_len,'-s'), hold on
    xlabel('Lap Num.'), ylabel('time (s)')
@@ -112,73 +113,75 @@ min_firing      = 1;
 [D_left, D_right] = split_trails(D);
 showpred        = true; %show the predicted and real firing rates
 folds           = 3;
-% train separately left/right/all 
-%%
-for s = 1 : 1%length(conditions)
-    
-    Data = eval(sprintf('D%s',conditions{s}));
-    %preallocating cross validation variables, two folds    
-    
-    mask            = false(1,length(Data)); % for cross validation
-    cv_trials       = randperm(length(Data));
-    fold_indx       = floor(linspace(1,length(Data)+1, folds+1));
-    
-    for ifold = 1 : folds  % two-fold cross-validation        
-        % prepare masks:
-        % test_mask isolates a single fold, train_mask takes the rest
-        test_mask       = mask;
-        test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
-        train_mask = ~test_mask;
-        train_data = Data(train_mask);
-        test_data  = Data(test_mask);
-        %training of the GPFA
-        [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,zDim);
+try
+    load([roots{animal} '_branch2_results40ms.mat'])
+catch
+    % train separately left/right/all 
+    for s = 1 : 1%length(conditions)
 
-        %Posterior of test data given the trained model
-        [traj, ll_te] = exactInferenceWithLL(test_data, params,'getLL',1);
-        % orthogonalize the trajectories4
-        [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
-        traj = segmentByTrial(traj, Xorth, 'data');
-% 
-        %Validation with LNO
-        cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
-                                  (test_data,params,zDim));
-        
-        true_data      = [test_data.y];
-        T              = [0 cumsum([test_data.T])];
-        cvdata         = zeros(size(true_data));
-        for i = 1 : length(test_data)
-           cvdata(:, T(i)+1:T(i+1)) = cell2mat(cv_gpfa_cell(7,:,i));
+        Data = eval(sprintf('D%s',conditions{s}));
+        %preallocating cross validation variables, two folds    
+
+        mask            = false(1,length(Data)); % for cross validation
+        cv_trials       = randperm(length(Data));
+        fold_indx       = floor(linspace(1,length(Data)+1, folds+1));
+
+        for ifold = 1 : folds  % two-fold cross-validation        
+            % prepare masks:
+            % test_mask isolates a single fold, train_mask takes the rest
+            test_mask       = mask;
+            test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+            train_mask = ~test_mask;
+            train_data = Data(train_mask);
+            test_data  = Data(test_mask);
+            %training of the GPFA
+            [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,zDim);
+
+            %Posterior of test data given the trained model
+            [traj, ll_te] = exactInferenceWithLL(test_data, params,'getLL',1);
+            % orthogonalize the trajectories4
+            [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
+            traj = segmentByTrial(traj, Xorth, 'data');
+    % 
+            %Validation with LNO
+            cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
+                                      (test_data,params,zDim));
+
+            true_data      = [test_data.y];
+            T              = [0 cumsum([test_data.T])];
+            cvdata         = zeros(size(true_data));
+            for i = 1 : length(test_data)
+               cvdata(:, T(i)+1:T(i+1)) = cell2mat(cv_gpfa_cell(7,:,i));
+            end
+            mse_fold        = sum(sum((cvdata-true_data).^2));
+
+            if showpred
+               plot_firing(cvdata, true_data, T)            
+            end
+
+            mse(ifold)  = mse_fold;
+            like(ifold) = ll_tr;
+            paramsGPFA{ifold} = params;
+            fprintf('Trained/validated fold %d\n',ifold)
+            clear train_data test_data cvdata cv_gpfa* params
         end
-        mse_fold        = sum(sum((cvdata-true_data).^2));
-        
-        if showpred
-           plot_firing(cvdata, true_data, T)            
-        end
-        
-        mse(ifold)  = mse_fold;
-        like(ifold) = ll_tr;
-        paramsGPFA{ifold} = params;
-        fprintf('Trained/validated fold %d\n',ifold)
-        clear train_data test_data cvdata cv_gpfa* params
+        result.params = paramsGPFA;
+        result.mse = mse;
+        result.like = like;
+        result.cv_trials = cv_trials;
+        result.foldidx = fold_indx;
+
+        eval(sprintf('result_D%s = result',conditions{s}))
+
+        clear result params* mse like
+
     end
-    result.params = paramsGPFA;
-    result.mse = mse;
-    result.like = like;
-    result.cv_trials = cv_trials;
-    result.foldidx = fold_indx;
-    
-    eval(sprintf('result_D%s = result',conditions{s}))
-    
-    clear result params* mse like
-    
+    save([roots{animal} '_branch2_results40ms.mat'],...
+        'result_D', 'result_D_left', 'result_D_right', 'D', 'keep_cell')
 end
-save([roots{animal} '_branch2_results40ms.mat'],...
-    'result_D', 'result_D_left', 'result_D_right', 'D')
 
 %% %%%%%%%%show orthogonalized latent variables:%%%%%%%%%%%%%%%%%%%%
 
-load([roots{animal} '_branch2_results40ms.mat'])
 saveplot = false;
 
 for s = 1 : length(conditions)
@@ -282,14 +285,14 @@ for sp = 1 : length(markers)
 end
 ylim([0 1.2])
 %Parameters to used from trained models
-params          = result_D_right.params{ifold};
+params          = result_D_left.params{ifold};
 
 SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
                      spw_type, color_spw, 'spw', 0);
 
-D               = segment(SpkSPW_DH, 0.04, Fs, 0.01); %2ms bin size
-D               = filter_condition(D, 'after_left_error', 2);
-% D               = D(20:30);
+D               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %2ms bin size
+D               = filter_condition(D, spw_tag{1}, 2);
+%D               = D(20:30);
 [traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);
 [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
 
@@ -297,7 +300,7 @@ T              = [0 cumsum([D.T])];
 
 %retrained the GPs
 if updateGP
-    [paramsUP,seq,ll]      = update_gps(params, D, 200);
+    [paramsUP,seq,ll]      = update_gps(params, D, 150);
     [traj, ll_te]  = exactInferenceWithLL(D, paramsUP,'getLL',1);
     [Xorth, Corth] = orthogonalize([traj.xsm], paramsUP.C);
 end
@@ -306,7 +309,7 @@ end
 if showpred
 %Validation with LNO
     cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
-                              (D,params,zDim));
+                              (D,paramsUP,zDim));
 
     true_SPW       = [D.y];
     T              = [0 cumsum([D.T])];
@@ -320,12 +323,12 @@ end
 
         
 
-figure(10)
+figure(1)
 set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
 color = jet(length(traj));
 for ilap = 1 : length(traj)
    lap_t = T(ilap)+1:T(ilap+1);
-   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1:9],{'X_1','X_2','X_3'},color(ilap,:))           
+   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
 
 %    plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
 %    plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))

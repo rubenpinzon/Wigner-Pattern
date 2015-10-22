@@ -94,7 +94,17 @@ for spw = 1 : length(F)
     fprintf('Max log like for spw %d with model %s\n',spw,conditions{b(spw)})
 end
 
-spws_left = F(b(b==1));
-spws_both = F(b(b==3));
+%spws segmented accoring to the max LogLike
+for model = 1 : length(conditions)
+    eval(sprintf('spws%s = F(b(b==%d));',conditions{model}, model))
+end
 
+%plots
+for model = 1 : length(conditions)
+    figure(model)
+    params = eval(['result_D' conditions{model} '.params{' num2str(ifold) '};']);
+    eval(sprintf('spws%s = F(b(b==%d));',conditions{model}, model))
+    [traj, ll_te]   = exactInferenceWithLL(spws{1}, params,'getLL',1);
+    [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
 
+end

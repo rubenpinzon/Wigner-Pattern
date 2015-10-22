@@ -11,7 +11,7 @@ import datetime as dt
 import scipy.integrate as integral
 
 
-def place_field(xmax=100, firing_rate=0.1, baseline=0.0001):
+def place_field(xmax=100, firing_rate=0.01, baseline=0.0001):
     """
     Creates a 1D Gaussian place field with center pos and
     covariance matrix. The max is scaled to desired firing_rate.
@@ -122,54 +122,61 @@ def kern(x, xprime, variance=1.0, lengthscale=1.0):
 
 if __name__ == '__main__':
 
-    basepath = '/media/bigdata/synthetic/db7/'
+    basepath = '/media/bigdata/synthetic/db9/'
     show = True
-    n_cells = 100
-    p_fields = setup(n_cells)
-    n_laps = 20
+    n_cells = 5  # number of neurons
+    n_laps = 1  # number of laps
     speed = 5.  # cm/s
-    max_pos = 80
-    t_taken = max_pos / (speed * 10)
-    Fs = 1000
+    max_pos = 80  # linear track is 100 mm long
+    t_taken = max_pos / (speed * 10)  # time taken to complete the task
+    Fs = 1000  # sampling frequency
     time = linspace(0, t_taken, int(t_taken * Fs))
 
-    # velocity as a OU process
+    # create the place fields of the neurons
+    p_fields = setup(n_cells)
+
+    # velocity of the rat in the linear track as a Ornstein-Uhlenbeck process
     mean_vel = speed * ones(time.size)
-    alpha = 5.0
+    alpha = 5.0  # OU process is generated as a Gaussian Process with exponential kernel with parameter alpha
     K = zeros((time.size, time.size))
     for i in xrange(time.size):
         for j in xrange(time.size):
             K[i, j] = kern(time[i], time[j], variance=alpha)
 
-    plt.imshow(K, interpolation='none')
+    plt.imshow(K, interpolation='none')  # the kernel, aka, covariance function matrix
     vel_rat = random.multivariate_normal(mean_vel, K)
+    # position is computed as a time integral of the velocity
     pos_rat = 10 * integral.cumtrapz(vel_rat, time, initial=0.)
 
-    # Show place fields distribution
+    # save the position and velocity of the animal in a txt file
+    key = '_{}.'.format(dt.date.today())
+    name = 'time_position_velocity_'
+    savetxt(basepath + name + key + 'txt', vstack((time, pos_rat, vel_rat)).T, fmt='%3.5f')
+
+    for n in range(n_laps):
+        print 'Lap {} out of {} completed'.format(n, n_laps)
+        _, spikes, _ = sample(pos_rat, time, p_fields, fig=None)
+        key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), n)
+        save_spks(spikes, basepath + key + 'txt')
+
+    # Show place fields distribution, position and velocity, and spikes
     if show:
         fig = plt.figure(frameon=False, figsize=(9, 7), dpi=100, facecolor='w', edgecolor='k')
         ax = fig.add_subplot(111)
         plt.subplots_adjust(hspace=0.5)
 
-    for p in p_fields:
-        ax.plot(p(range(0, max_pos)))
-    plt.ylabel('Place fields')
-    plt.xlabel('Linear track (mm)')
+        for p in p_fields:
+            ax.plot(p(range(0, max_pos)))
+        plt.ylabel('Place fields')
+        plt.xlabel('Linear track (mm)')
 
-    ax1 = update_figure(fig)
-    ax1.plot(time, pos_rat)
-    ax1.plot(time, vel_rat)
-    plt.ylabel('Position animal (mm)')
-    plt.xlabel('Time (s)')
-    ax2, spikes, rates = sample(pos_rat, time, p_fields, fig, link=1)
-    plt.ylabel('Cell Num.')
-    plt.xlabel('Time')
-    key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), 0)
-    fig.savefig(basepath + key + 'png')
-
-    for n in range(n_laps):
-        _, spikes, _ = sample(pos_rat, time, p_fields, fig=None)
-        key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), n)
-        save_spks(spikes, basepath + key + 'txt')
-
-    plt.show()
+        ax1 = update_figure(fig)
+        ax1.plot(time, pos_rat)
+        ax1.plot(time, 10 * vel_rat)
+        plt.ylabel('Pos./vel. rat (mm, mm/s)')
+        plt.xlabel('Time (s)')
+        ax2, spikes, rates = sample(pos_rat, time, p_fields, fig, link=1)
+        plt.ylabel('Cell Num.')
+        plt.xlabel('Time')
+        fig.savefig(basepath + name + key + 'png')
+        plt.show()

@@ -1,15 +1,24 @@
-function [D,keep_neurons]=segment(D, bin_size, Fs, min_firing)
+function [D,keep_neurons]=segment(D, bin_size, Fs, keep_neurons)
 %SEGMENT remove low firing rate neurons and segments in non-overlapping
 %        windows
 %
 %
+if length(keep_neurons)==1
+    min_firing      = keep_neurons;
+    firing_thr      = min_firing; % Minimum firing rate find which  % neurons should be kept
+    m               = mean([D.data],2) * Fs;
+    keep_neurons    = m >= firing_thr; 
+         
+else
+    disp('Vector of neurons to remove provided')
+    firing_thr = NaN;
+end
 
-firing_thr      = min_firing ; % Minimum firing rate find which 
-                        % neurons should be kept
-m               = mean([D.data],2) * Fs;
-keep_neurons    = m >= firing_thr;
 fprintf('%d neurons remained with firing rate above %2.2f Hz\n',...
-            sum(keep_neurons),firing_thr)
+                sum(keep_neurons),firing_thr)
+          
+
+
 % Remove low firing rate neurons
 for itrial = 1:length(D)
     D(itrial).data = D(itrial).data(keep_neurons,:);

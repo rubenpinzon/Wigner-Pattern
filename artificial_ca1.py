@@ -9,9 +9,11 @@ from scipy.stats import norm, poisson, gamma
 import matplotlib.pyplot as plt
 import datetime as dt
 import scipy.integrate as integral
+import csv
+import os
 
 
-def place_field(xmax=100, firing_rate=0.01, baseline=0.0001):
+def place_field(xmax=100, firing_rate=0.1, baseline=0.0001, **kwargs):
     """
     Creates a 1D Gaussian place field with center pos and
     covariance matrix. The max is scaled to desired firing_rate.
@@ -19,13 +21,18 @@ def place_field(xmax=100, firing_rate=0.01, baseline=0.0001):
 
     :return pdf: Probability density function
     """
-    n_modes = floor(gamma.rvs(3, 0, 1))
-    if n_modes < 1.:
-        n_modes = 1
-    if n_modes > 4:
-        n_modes = 4
-    pos = random.uniform(1, xmax, n_modes)
-    var = random.uniform(1.5, xmax / 10, n_modes)
+    if 'preloaded' in kwargs:
+        pos = kwargs['preloaded'][0]
+        var = kwargs['preloaded'][1]
+        n_modes = len(pos)
+    else:
+        n_modes = floor(gamma.rvs(3, 0, 1))
+        if n_modes < 1.:
+            n_modes = 1
+        if n_modes > 4:
+            n_modes = 4
+        pos = random.uniform(1, xmax, n_modes)
+        var = random.uniform(1.5, xmax / 10, n_modes)
 
     gauss_m = list()
     for p, v in zip(pos, var):
@@ -41,18 +48,25 @@ def place_field(xmax=100, firing_rate=0.01, baseline=0.0001):
         fr = firing_rate * prob + baseline
         return fr
 
-    return pdf
+    def info():
+        parameters = (pos, var)
+        return parameters
+
+    return pdf, info
 
 
-def setup(n_p_fields=100, xmax=100):
+def setup(basepath, n_p_fields=100, xmax=100):
     """
     Setup a linear track with dimmensions 1 x 100 mm
     :param n_p_fields: number of place fields
     """
-
-    p_fields = list()
-    for f in range(n_p_fields):
-        p_fields.append(place_field(xmax))
+    if not os.path.isfile(basepath + 'place_fields.csv'):
+        p_fields = list()
+        for f in range(n_p_fields):
+            p_fields.append(place_field(xmax))
+    else:
+        print 'Place fields CVS file found {}'.format(basepath + 'place_fields.csv')
+        p_fields = load_fields(basepath)
 
     return p_fields
 
@@ -95,6 +109,10 @@ def save_spks(spikes, name):
     savetxt(name, spikes, '%3.5f\t%3d')
 
 
+def save_rates(rates, name):
+    savetxt(name, rates)
+
+
 def sample(pos, time, p_fields, fig=None, **kwargs):
     ax2 = None
     if fig:
@@ -112,7 +130,7 @@ def sample(pos, time, p_fields, fig=None, **kwargs):
                     ax2.plot(times, ones(spks) * c, '|', color='r')
                 all_spikes.extend(column_stack((times, cell)))
         all_rates.append(rates)
-
+    # TODO: firing rate should not be over fmax, and cell latency should be added
     return ax2, all_spikes, all_rates
 
 
@@ -120,20 +138,56 @@ def kern(x, xprime, variance=1.0, lengthscale=1.0):
     return exp(-variance * abs(x - xprime))
 
 
+def save_fields(p_fields, basepath):
+    if not os.path.isfile(basepath + 'place_fields.csv'):
+        pars = [p[1]() for p in p_fields]
+        with open(basepath + 'place_fields.csv', 'w') as f:
+            writer = csv.writer(f)
+            f.write("mean - var\n")
+            for line in pars:
+                writer.writerows(line)
+    else:
+        print "File not overwritten"
+
+
+def load_fields(basepath):
+    with open(basepath + 'place_fields.csv', 'r') as f:
+        reader = csv.reader(f)
+        # get rid of header
+        reader.next()
+        p_fields = list()
+        pos_flag = 0
+        for row in reader:
+            pos_flag += 1
+            if pos_flag == 1:
+                pos = double(row)
+            elif pos_flag == 2:
+                var = double(row)
+                p_fields.append(place_field(preloaded=(pos, var)))
+                pos_flag = 0
+
+    return p_fields
+
+
 if __name__ == '__main__':
 
-    basepath = '/media/bigdata/synthetic/db9/'
+    basepath = '/media/bigdata/synthetic/db11/'
+    extra_hd = 'spw'
     show = True
-    n_cells = 5  # number of neurons
-    n_laps = 1  # number of laps
-    speed = 5.  # cm/s
-    max_pos = 80  # linear track is 100 mm long
-    t_taken = max_pos / (speed * 10)  # time taken to complete the task
+    n_cells = 100  # number of neurons
+    n_laps = 50  # number of laps
+    speed = 10.  # cm/s
+    min_pos = 75
+    max_pos = 90  # linear track is 100 mm long
+    t_taken = (max_pos - min_pos) / (speed * 10)  # time taken to complete the task
     Fs = 1000  # sampling frequency
     time = linspace(0, t_taken, int(t_taken * Fs))
 
-    # create the place fields of the neurons
-    p_fields = setup(n_cells)
+    # create the place fields of the neurons or load one
+    cells = setup(basepath, n_cells)
+
+    p_fields = [c[0] for c in cells]
+    save_fields(cells, basepath)
 
     # velocity of the rat in the linear track as a Ornstein-Uhlenbeck process
     mean_vel = speed * ones(time.size)
@@ -143,10 +197,9 @@ if __name__ == '__main__':
         for j in xrange(time.size):
             K[i, j] = kern(time[i], time[j], variance=alpha)
 
-    plt.imshow(K, interpolation='none')  # the kernel, aka, covariance function matrix
     vel_rat = random.multivariate_normal(mean_vel, K)
     # position is computed as a time integral of the velocity
-    pos_rat = 10 * integral.cumtrapz(vel_rat, time, initial=0.)
+    pos_rat = 10 * integral.cumtrapz(vel_rat, time, initial=0.) + min_pos
 
     # save the position and velocity of the animal in a txt file
     key = '_{}.'.format(dt.date.today())
@@ -155,9 +208,10 @@ if __name__ == '__main__':
 
     for n in range(n_laps):
         print 'Lap {} out of {} completed'.format(n, n_laps)
-        _, spikes, _ = sample(pos_rat, time, p_fields, fig=None)
+        _, spikes, rates = sample(pos_rat, time, p_fields, fig=None)
         key = 'spikes_{}_{}_lap_{}.'.format(n_cells, dt.date.today(), n)
-        save_spks(spikes, basepath + key + 'txt')
+        save_spks(spikes, basepath + extra_hd + key + 'txt')
+        # save_rates(rates, basepath + key.replace('spikes', 'rates') + 'txt')
 
     # Show place fields distribution, position and velocity, and spikes
     if show:
@@ -166,7 +220,7 @@ if __name__ == '__main__':
         plt.subplots_adjust(hspace=0.5)
 
         for p in p_fields:
-            ax.plot(p(range(0, max_pos)))
+            ax.plot(p(range(0, 100)))
         plt.ylabel('Place fields')
         plt.xlabel('Linear track (mm)')
 
@@ -178,5 +232,5 @@ if __name__ == '__main__':
         ax2, spikes, rates = sample(pos_rat, time, p_fields, fig, link=1)
         plt.ylabel('Cell Num.')
         plt.xlabel('Time')
-        fig.savefig(basepath + name + key + 'png')
+        fig.savefig(basepath + name + extra_hd + key + 'png')
         plt.show()

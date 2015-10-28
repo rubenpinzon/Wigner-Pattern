@@ -1,6 +1,12 @@
-function plot_firing(cvdata, true_data, T)
+function plot_firing(cvdata, true_data, T, varargin)
 
 %[val, order]  = sort(sum((cvdata-true_data).^2,2));
+plot_rates = false;
+if length(varargin) ~= 0
+    rates = varargin{1};
+    plot_rates = true;
+end
+    
 order = 1:size(cvdata,1);
 for j = 1 : ceil(numel(order)/4)
    figure(j)
@@ -13,6 +19,10 @@ for j = 1 : ceil(numel(order)/4)
           
           plot(y,'b'), hold on  
           plot(y_pred,'r', 'linewidth',2)
+          
+          if plot_rates
+              plot(linspace(0,length(y),length(rates)), rates(j,:),'-.k')
+          end
           title(sprintf('Cell %d',order(idx)))
           plot(repmat(T,2,1),ylim,'color',[0.8 0.8 0.8])
           

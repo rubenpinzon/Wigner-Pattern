@@ -80,7 +80,7 @@ for lap = 1:numLaps
     end
     if debug
         figure(2)
-        plot(X_at_maze, Y_at_maze, 'color', tcolor(lap,:)), hold on
+        plot(X_at_maze, Y_at_maze, 'color', tcolor(lap,:), 'displayname',num2str(lap)), hold on
         text(700, 400 + 30*lap, ['Lap ' num2str(lap)], 'color', tcolor(lap,:));
         figure(22)
         plot(speed_lap, 'color', tcolor(lap,:)), hold on

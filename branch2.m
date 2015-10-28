@@ -46,20 +46,20 @@ numLaps         = numel(laps)-1;
 [spk, spk_lap]  = get_spikes(clusters, data.Spike.res,laps);
 typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
-color           = jet(numLaps+1);
+color           = jet(55);
 conditions      = {'_left', '_right', ''};
 
 %% =======================================================================%
 %==============   Extract Running Sections        ========================%
 %=========================================================================%
-debug           = false; %to show diganostic plots
+debug           = true; %to show diganostic plots
 
 % Extract spks when the mouse is running and in the wheel to calculate
 for lap = 1:numLaps  
     %(a) Runing in the wheel. Detected based on the speed of the wheel that
     %is a better indicator than the EnterSection time stamp
     
-    idx_run                 = [events{lap}(2,1), sum(events{lap}(5:6,2))];
+    idx_run                 = [sum(events{lap}(3:4,1)), sum(events{lap}(5:6,2))];
     int_at_maze(lap, :)     = idx_run;
     run_len(lap)            = (idx_run(2)-idx_run(1))/Fs;
     X_at_maze               = X(idx_run(1):idx_run(2));
@@ -99,25 +99,25 @@ MaxTimeE            = floor(Fs * run_len);
 onlyCorrectTrial    = true;
 %Data processed for datahigh without interneuorns
 SpkRun_DH           = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
-                     trial, color, 'run', onlyCorrectTrial);
+                     trial, color_trial, 'run', onlyCorrectTrial);
 
 %% =======================================================================%
 %======== (1) Train on Left/Right arms separately        =================%
 %=========================================================================%
-
+name = '_branch2_noMidArm.mat';
 bin_size        = 0.04;  %20 ms
 zDim            = 10;    % Target latent dimensions
 results(1).bin  = bin_size;
-min_firing      = 1;
+min_firing      = 1.5;
 [D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing);
 [D_left, D_right] = split_trails(D);
 showpred        = true; %show the predicted and real firing rates
 folds           = 3;
 try
-    load([roots{animal} '_branch2_results40ms.mat'])
+    load([roots{animal} name])
 catch
     % train separately left/right/all 
-    for s = 1 : 1%length(conditions)
+    for s = 1 : length(conditions)
 
         Data = eval(sprintf('D%s',conditions{s}));
         %preallocating cross validation variables, two folds    
@@ -160,7 +160,7 @@ catch
             end
 
             mse(ifold)  = mse_fold;
-            like(ifold) = ll_tr;
+            like(ifold) = ll_te;
             paramsGPFA{ifold} = params;
             fprintf('Trained/validated fold %d\n',ifold)
             clear train_data test_data cvdata cv_gpfa* params
@@ -176,13 +176,13 @@ catch
         clear result params* mse like
 
     end
-    save([roots{animal} '_branch2_results40ms.mat'],...
+    save([roots{animal} name],...
         'result_D', 'result_D_left', 'result_D_right', 'D', 'keep_cell')
 end
 
 %% %%%%%%%%show orthogonalized latent variables:%%%%%%%%%%%%%%%%%%%%
 
-saveplot = false;
+saveplot = true;
 
 for s = 1 : length(conditions)
     
@@ -191,7 +191,7 @@ for s = 1 : length(conditions)
     mask            = false(1,length(Data)); % for cross validation
     cv_trials       = Result.cv_trials;
     fold_indx       = Result.foldidx;
-    
+    fprintf('Condition %s loaded\n',conditions{s})
     
     for ifold = 1 : folds  % two-fold cross-validation        
         % prepare masks:
@@ -206,21 +206,33 @@ for s = 1 : length(conditions)
         T              = [0 cumsum([test_data.T])];
         
         figure(10)
-        set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
+        set(gcf, 'position', [1,1,1424,973], 'color', 'w')
+        figure(11)
+         set(gcf, 'position', [1,1,1424,973], 'color', 'w')
 
         color = jet(length(traj));
         start_traj = []; end_traj = [];
         for ilap = 1 : length(traj)
            lap_t = T(ilap)+1:T(ilap+1);
-           
-           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},[0.8 0.8 0.8])           
-           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
-           plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
-           plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
+           c = color(ilap,:); 
+           if s == 3
+               c = [0 0 1];
+               if strcmp(test_data(ilap).condition,'right')
+                    c = [1 0 0];
+               end
+           end
+           figure(10)
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},c,num2str(test_data(ilap).trialId))           
+           plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},c)
+           plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},c)
+           plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},c)          
            
            start_traj(ilap, :) = Xorth(1:3,lap_t(1));
            end_traj(ilap, :)   = Xorth(1:3,lap_t(end));
+           figure(11)
+           plot_latent(Xorth(:,lap_t), c)
         end
+        figure(10)
         ellipse_eig(end_traj(:,1:2), 3, [1, 0, 0])
         ellipse_eig(end_traj(:,2:3), 6,[1, 0, 0])
         ellipse_eig(end_traj(:,[1,3]), 9,[1, 0, 0])
@@ -231,10 +243,17 @@ for s = 1 : length(conditions)
         text(-0.8, -0.2, 'start','color','b')
         text(-0.3, -0.5, 'end','color','r')
         if saveplot
-            print(gcf,[roots{animal} sprintf('x_orth_cond%s(fold%d).png',conditions{s},ifold)],'-dpng')
-            title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d)',conditions{s}(2:end), ifold)); 
+            figure(10)
+            title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (fold %d) noMiddleArm',conditions{s}(2:end), ifold)); 
+            print(gcf,[roots{animal} sprintf('x_orth_cond%s(fold%d)_noMidArm.png',conditions{s},ifold)],'-dpng')
+
+            figure(11)
+            title_span(gcf,sprintf('Latents Condition %s (fold %d) noMiddleArm',conditions{s}(2:end), ifold));
+            print(gcf,[roots{animal} sprintf('Latents_%s(fold%d)_noMidArm.png',conditions{s},ifold)],'-dpng')
+
             
         end
+                
         close gcf
     end    
     title_span(gcf,sprintf('Condition %s (Two folds)',conditions{s}(2:end)));

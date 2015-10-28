@@ -1,5 +1,9 @@
-function plot_xorth(x1,x2,x3, fig,label, color)
+function plot_xorth(x1,x2,x3, fig,label, color, varargin)
 
+name = '';
+if length(varargin) ~=0
+   name = varargin{1}; 
+end
 
 subplot(3,3,fig), hold on, grid on %X-Y, 
 if isempty(x3)
@@ -16,7 +20,7 @@ if isempty(x3)
 else
    subplot(3,3,fig), hold on, grid on
    set(gca, 'CameraPosition',[-10.1288 -7.2519 2.0493])
-   plot3(x1,x2,x3, 'Color', color)
+   plot3(x1,x2,x3, 'Color', color,'displayname',name)
    plot3(x1(1),x2(1),x3(1),'sk', 'markersize',8, 'MarkerFaceColor', color)
    plot3(x1(end),x2(end),x3(end),'ok', 'markersize',8, 'MarkerFaceColor', color)
    xlabel('X_1'), ylabel('X_2'), zlabel('X_3')

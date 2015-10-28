@@ -9,27 +9,32 @@
 clc, close all; clear all;
 cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
-basepath        = '/media/bigdata/synthetic/db8/';
-pattern         = 'spikes_*.txt';
+basepath        = '/media/bigdata/synthetic/db11/';
+pattern         = 'spwspikes_*.txt';
+description     = 'Training the gpfa on spw';
 Fs              = 1000;
-T_real          = 1.610 * Fs; 
+T_real          = 1.1 * Fs; 
+pattern_rates   = 'spw_rates_*.txt';
 
 %======Extraxt the spikes for each cell for each lap======================%
 
 D               = dir([basepath pattern]);
 n_laps          = length(D);
 
+
 for ilap = 1 : n_laps 
    spikes   = load([basepath D(ilap).name]); 
-   n_cells  = max(spikes(:,2)) + 1;
-   %n_cells  = 99;
-   T(ilap)  = 0; % for saving the lap duration
+%    rates    = load([basepath strrep(D(ilap).name,'spikes','rates')])';
+   
+   %n_cells  = max(spikes(:,2)) + 1;
+   n_cells   = 90;
+   T(ilap)   = 0; % for saving the lap duration
    
    %data structure for the GPFA
    D(ilap).data       = zeros(n_cells,T_real);
    D(ilap).trialId    = ilap;
    D(ilap).condition  = 'linear Track';
-   
+%    D(ilap).rates      = rates;
    for icell = 1 : n_cells
        s = spikes(spikes(:,2)==icell-1,1);
        spk{icell, ilap} = s;
@@ -42,9 +47,9 @@ for ilap = 1 : n_laps
    F(ilap).condition = 'l_track';
 end
 
-bin_size        = 0.02;  %20 ms
+bin_size        = 0.008;  %20 ms
 zDim            = 10;    % Target latent dimensions
-min_firing      = 2;
+min_firing      = 0.1;
 [D,keep_cell]   = segment(D, bin_size, Fs, min_firing);
 showpred        = true; %show the predicted and real firing rates
 %DataHigh(F,'DimReduce')
@@ -54,8 +59,6 @@ mask            = false(1,length(D)); % for cross validation
 cv_trials       = randperm(length(D));
 fold_indx       = floor(linspace(1,length(D)+1, folds+1));
 saveplot        = true;
-
-
 
 for ifold = 1 : 1%folds  % two-fold cross-validation        
     % prepare masks:
@@ -86,7 +89,7 @@ for ifold = 1 : 1%folds  % two-fold cross-validation
     mse_fold        = sum(sum((cvdata-true_data).^2));
 
     if showpred
-        plot_firing(cvdata, true_data, T)    
+        plot_firing(cvdata, true_data, T);    
     
         figure(20)
         set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
@@ -114,7 +117,7 @@ for ifold = 1 : 1%folds  % two-fold cross-validation
         text(-0.3, -0.5, 'end','color','r')
         if saveplot
             print(gcf,[basepath sprintf('x_orth_cond(fold%d).png',ifold)],'-dpng')
-            title_span(gcf,sprintf('Neural Space (SVD ort1ho)(fold %d)', ifold)); 
+            %title_span(gcf,description); 
         end
     end
     
@@ -130,26 +133,54 @@ result.like = like;
 result.cv_trials = cv_trials;
 result.foldidx = fold_indx;
 
-%% ======================Using Aecker Library=============================
+%% =======================================================================%
+%========        (2) LogLike p(spw|model)                =================%
+%=========================================================================%
+pattern         = 'spwspikes_*.txt';
+Fs              = 1000;
+T_real          = 0.1 * Fs; 
 
-folds           = 3;
-mask            = false(1,length(D)); % for cross validation
-cv_trials       = randperm(length(D));
-fold_indx       = floor(linspace(1,length(D)+1, folds+1));
-saveplot        = true;
+S               = dir([basepath pattern]);
+n_laps          = length(S);
 
-
-for ifold = 1 : 1%folds  % two-fold cross-validation        
-    % prepare masks:
-    % test_mask isolates a single fold, train_mask takes the rest
-    test_mask       = mask;
-    test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
-    train_mask = ~test_mask;
-    train_data = D(train_mask);
-    test_data  = D(test_mask);
-    
-    Y = reshape([train_data.y],[48, 80, numel(train_data)]);
-    model = GPFA('Tolerance', 1e-8, 'Verbose',true);
-    model = model.fit(Y, 10, 'hist');
-
+for ilap = 1 : n_laps 
+   spikes   = load([basepath S(ilap).name]); 
+   n_cells  = sum(keep_cell);
+   %n_cells  = 90;
+  
+   %data structure for the GPFA
+   S(ilap).data       = zeros(n_cells,T_real);
+   S(ilap).trialId    = ilap;
+   S(ilap).condition  = 'linear Track';
+   
+   for icell = 1 : length(keep_cell)
+       if keep_cell(icell)
+           s = spikes(spikes(:,2)==icell-1,1);
+           spk{icell, ilap} = s;
+           if ~isempty(s)
+               T(ilap)          = max(T(ilap), max(spk{icell, ilap}));
+               S(ilap).data(icell,floor(s*Fs)+2) = 1;
+           end
+       end
+   end
+   G(ilap).data = S(ilap).data;
+   G(ilap).condition = 'l_track';
 end
+
+bin_size        = 0.002;  %2 ms
+zDim            = 10;    % Target latent dimensions
+min_firing      = 0;
+S               = segment(S, bin_size, Fs, min_firing);
+
+%log like
+[traj_spw, ll_te_spw] = exactInferenceWithLL(S, paramsGPFA{1},'getLL',1);
+[Xorth_spw, Corth_spw]  = orthogonalize([traj_spw.xsm], paramsGPFA{1}.C);
+T              = [0 cumsum([S.T])];
+
+figure(20)
+for ilap = 1 : length(traj_spw)
+   lap_t = T(ilap)+1:T(ilap+1);
+   plot_xorth(Xorth_spw(1,lap_t),Xorth_spw(2,lap_t),Xorth_spw(3,lap_t),...
+       [1 2 4 5 7 8],{'X_1','X_2','X_3'},0.5*color(ilap,:))  
+end
+

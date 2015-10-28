@@ -2,7 +2,7 @@
 % AE 2012-10-19
 
 % create toy example
-rng(1)
+%rng(1)
 [grd, Y, X, S] = GPFA.toyExample();
 % % [grd, Y, X, S] = GPFA.toyExampleOri('gauss');
 % % [grd, Y, X, S] = GPFA.toyExampleOri('poisson');

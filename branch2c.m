@@ -25,7 +25,7 @@ load([roots{animal} '_branch2_results40ms.mat']);
 ifold           = 1;
 n_cells         = size(spk_lap,2);
 %% =======================================================================%
-%======== (2) Get SPWs in the reward or wheel area       =================%
+%===============        (2) Get all SPWS                 =================%
 %=========================================================================%
 
 spw_tag = {'after_left', 'after_right', 'after_left_error', 'after_right_error'};
@@ -65,33 +65,54 @@ for sp = 1 : length(markers)
                 ylim([0 1.2])
             end
         end
-    end
+    end    
 end
 
 bin_size        = 0.004; %ten times smaller than Theta
-SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
+SpkSPW_DH       = get_high(SpkSPW(:,keep_cell), ceil(spw_len*Fs),...
                      spw_type, color_spw, 'spw', 0);
-F               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %4ms bin size
 
+%4ms bin size 
+F               = segment(SpkSPW_DH, 0.004, Fs, ones(1,sum(keep_cell))); 
+
+%check the sparsity, mean firing on each spw
+n_spks  = zeros(size(SpkSPW_DH(1).data,1),length(SpkSPW_DH));
+for spw = 1 : length(SpkSPW_DH)
+   n_spks(:,spw) = sum(SpkSPW_DH(spw).data,2);     
+end
+%compare with the theta data
+n_spks_D  = zeros(size(D(1).data,1),length(D));
+for th = 1 : length(D)
+    n_spks_D(:,th) = sum(D(th).data,2);    
+end
+if debug
+    m_f  = [mean(n_spks,2) mean(n_spks_D,2)]; 
+    std_f= [std(n_spks,1,2) std(n_spks_D,1,2)]; 
+    txt  = ([1:sum(keep_cell);  m_f'; std_f']);
+    fprintf('M_Fr. Cell_%d SPW %3.3f+/-%1.3f The %1.3f+/-%1.3f\n',...
+        txt([1 2 4 3 5],:))    
+end
 %% =======================================================================%
 %========        (3) LogLike p(spw|model)                =================%
 %=========================================================================%
 ll_spw_given_model = zeros(length(F), length(conditions));
 
 for model = 1 : length(conditions)
-    params = eval(['result_D' conditions{model} '.params{' num2str(ifold) '};']);
+   params = eval(sprintf('result_D%s.params{%d};',conditions{model},ifold));
     for spw = 1 : length(F)
         %remove all but one SPW
         X = F(spw);
-        [traj, ll]   = exactInferenceWithLL(X, params,'getLL',1);
+        [traj, ll] = exactInferenceWithLL(X, params,'getLL',1);
         ll_spw_given_model(spw, model) = ll;
-        fprintf('Condition %s, SPW %d/%d\n', conditions{model}, spw, length(F))
+        fprintf('Condition %s, SPW %d/%d\n', conditions{model},...
+            spw, length(F))
     end
 end
 
-[a,b] = max(ll_spw_given_model');
+[a,best_match] = max(ll_spw_given_model');
 for spw = 1 : length(F)
-    fprintf('Max log like for spw %d with model %s\n',spw,conditions{b(spw)})
+    fprintf('Max log like for spw %d with model %s\n',...
+        spw,conditions{best_match(spw)})
 end
 
 %spws segmented accoring to the max LogLike
@@ -102,9 +123,16 @@ end
 %plots
 for model = 1 : length(conditions)
     figure(model)
-    params = eval(['result_D' conditions{model} '.params{' num2str(ifold) '};']);
-    eval(sprintf('spws%s = F(b(b==%d));',conditions{model}, model))
-    [traj, ll_te]   = exactInferenceWithLL(spws{1}, params,'getLL',1);
-    [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
+    set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
+
+    params = eval(sprinft('result_D%s.params{%d};',conditions{model},ifold));
+    spws_data = eval(sprintf('spws%s',conditions{model}));
+    
+    %Infere the l.v. and orthogonalize using the model 
+    %with larger affinty: (log P(spw|model)
+    [traj, ll_te]   = exactInferenceWithLL(spws_data, params,'getLL',1);
+    [Xorth, Corth]  = orthogonalize([traj.xsm], params.C);
+    
+    
 
 end

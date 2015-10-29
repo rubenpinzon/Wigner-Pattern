@@ -48,22 +48,26 @@ typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
 color           = jet(55);
 conditions      = {'_left', '_right', ''};
-
+middle_arm      = true;
 %% =======================================================================%
 %==============   Extract Running Sections        ========================%
 %=========================================================================%
 debug           = true; %to show diganostic plots
-
+%this is to remove/add the section in the middle arm of the maze
+sect            = [3, 4];   
+if middle_arm
+   sect = 2; 
+end
 % Extract spks when the mouse is running and in the wheel to calculate
 for lap = 1:numLaps  
     %(a) Runing in the wheel. Detected based on the speed of the wheel that
     %is a better indicator than the EnterSection time stamp
     
-    idx_run                 = [sum(events{lap}(3:4,1)), sum(events{lap}(5:6,2))];
+    idx_run                 = [sum(events{lap}(sect,1)), sum(events{lap}(5:6,2))];
     int_at_maze(lap, :)     = idx_run;
     run_len(lap)            = (idx_run(2)-idx_run(1))/Fs;
-    X_at_maze               = X(idx_run(1):idx_run(2));
-    Y_at_maze               = Y(idx_run(1):idx_run(2));
+    X_lap{lap}          = X(idx_run(1):idx_run(2));
+    Y_lap{lap}          = Y(idx_run(1):idx_run(2));
     speed_lap               = speed(idx_run(1):idx_run(2));
 
     %sect 1:enter, 6:exit
@@ -74,14 +78,15 @@ for lap = 1:numLaps
     end
     if debug
         figure(2)
-        plot(X_at_maze, Y_at_maze, 'color', color(lap,:),...
+        plot(X_lap{lap}, Y_lap{lap}, 'color', color(lap,:),...
             'displayname',sprintf('Lap %d',lap))
         hold on       
     end
     %Type of trial
     trial{lap}                = typetrial{data.Laps.TrialType(laps(lap))};
     color_trial(lap,:)        = color(data.Laps.TrialType(laps(lap)),:);
-end
+end    
+
 if debug
    figure(2), title('Position of animal per Lap in section Run')
 
@@ -105,10 +110,14 @@ SpkRun_DH           = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
 %======== (1) Train on Left/Right arms separately        =================%
 %=========================================================================%
 name = '_branch2_noMidArm.mat';
+if middle_arm
+    name = '_branch2_results40ms.mat';
+end
+
 bin_size        = 0.04;  %20 ms
 zDim            = 10;    % Target latent dimensions
 results(1).bin  = bin_size;
-min_firing      = 1.5;
+min_firing      = 1.0;
 [D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing);
 [D_left, D_right] = split_trails(D);
 showpred        = true; %show the predicted and real firing rates
@@ -177,7 +186,7 @@ catch
 
     end
     save([roots{animal} name],...
-        'result_D', 'result_D_left', 'result_D_right', 'D', 'keep_cell')
+        'result_D', 'result_D_left', 'result_D_right', 'D', 'keep_cell', 'X_lap','Y_lap')
 end
 
 %% %%%%%%%%show orthogonalized latent variables:%%%%%%%%%%%%%%%%%%%%
@@ -202,7 +211,7 @@ for s = 1 : length(conditions)
         %Posterior of test data given the trained model
         [traj, ll_te] = exactInferenceWithLL(test_data, Result.params{ifold},'getLL',1);
         % orthogonalize the trajectories4
-        [Xorth, Corth] = orthogonalize([traj.xsm], Result.params{ifold}.C);
+        [Xorth, Corth, TT, EE] = orthogonalize([traj.xsm], Result.params{ifold}.C);
         T              = [0 cumsum([test_data.T])];
         
         figure(10)
@@ -266,50 +275,59 @@ end
 
 
 %% =======================================================================%
-%======== (1) Get SPWs in the reward or wheel area       =================%
+%======== (2) Get SPWs in the reward or wheel area       =================%
 %=========================================================================%
 
 markers = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
 updateGP = true;
 
-figure(20)
+figure(20), hold on
 set(gcf, 'position', [0 1 1000 300], 'color', 'w')
-plot(eeg./max(eeg),'color',[0.8, 0.8, 0.8]), hold on
-plot(0.08*mazesect-0.5,'b')
+%plot(eeg./max(eeg),'color',[0.8, 0.8, 0.8]), hold on
+plot(0.08*mazesect-0.5,'-.k')
 ylim([-0.6 0.6])
-plot(repmat(markers(:,1),1,2),ylim,'r')
+plot(repmat(markers(:,1),1,2),ylim,'b')
 plot(repmat(markers(:,2),1,2),ylim,'c')
-plot(0.1*data.Laps.TrialType,'r')
+plot(0.1*data.Laps.TrialType,'r','linewidth',2)
 
-spw_tag = {'after_left', 'after_right', 'after_left_error', 'after_right_error'};
-color   = jet(4);
-for sp = 1 : length(markers)   
-    spw_type{sp}            = spw_tag{data.Laps.TrialType(ceil(markers(sp,1)))+1};
-    color_spw(sp,:)         = color(data.Laps.TrialType(ceil(markers(sp,1)))+1,:);
-    %spikes during the SPW
-    
-    idx_run                 = ceil(markers(sp,1):markers(sp,2));
-    spw_len(sp)            = (idx_run(end)-idx_run(1))/Fs;
-    cnt = 1;
-    %sect 1:enter, 6:exit
-    for neu=1:n_cells
-        if isIntern(neu)==0
+%selects those SPWs that are close to the runs and extracts spks
+%saves struct S
+run_end = int_at_maze(:,2);
+min_d   = 20 * Fs; 
+cnt     = 1;
+for sp = 1 : length(markers)
+    d_spw2run = run_end - markers(sp,1)*ones(length(run_end),1);
+    lap_spw = find(abs(d_spw2run(d_spw2run<0)) <= min_d);
+    if ~isempty(lap_spw)
+        S(cnt).marker = markers(sp,:);
+        S(cnt).lap_It_Belongs = lap_spw;
+        S(cnt).lap_type = data.Laps.TrialType(ceil(markers(sp,1)))+1;
+
+        %extract spikes
+        idx_run               = ceil(markers(sp,1):markers(sp,2));
+        S(cnt).duration       = (idx_run(end)-idx_run(1));
+        c_cnt                 = 1;
+        S(cnt).spk_train      = zeros(n_cells, S(cnt).duration);
+        for neu=1:n_cells
             idx = spk{neu}>=idx_run(1) & spk{neu}<=idx_run(end);
             %aligned to the start of the section
-            SpkSPW{sp,cnt} = spk{neu}(idx) - idx_run(1) + 1;
-            cnt = cnt +  1;
-            plot(repmat(spk{neu}(idx),1,2)', repmat(0.01*[neu neu+0.9],length(spk{neu}(idx)),1)', 'linewidth',2)
+            spk_spw        = spk{neu}(idx) - idx_run(1) + 1;
+            if ~isempty(spk_spw)
+               S(cnt).spk_train(neu, spk_spw) = 1; 
+            end
+            c_cnt = c_cnt + 1;
         end
-    end
+        cnt = cnt + 1;
+    end    
 end
-ylim([0 1.2])
+
 %Parameters to used from trained models
 params          = result_D_left.params{ifold};
 
 SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
                      spw_type, color_spw, 'spw', 0);
 
-D               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %2ms bin size
+D               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %4ms bin size
 D               = filter_condition(D, spw_tag{1}, 2);
 %D               = D(20:30);
 [traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);

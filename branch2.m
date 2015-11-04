@@ -229,7 +229,8 @@ for s = 1 : length(conditions)
                if strcmp(test_data(ilap).condition,'right')
                     c = [1 0 0];
                end
-           end
+           end            
+
            figure(10)
            plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},c,num2str(test_data(ilap).trialId))           
            plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},c)
@@ -311,7 +312,7 @@ end
 %% =======================================================================%
 %======== (2) Get SPWs in the reward or wheel area       =================%
 %=========================================================================%
-
+D           = SpkRun_DH;
 markers     = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
 updateGP    = true;
 removeInh   = true;
@@ -329,8 +330,8 @@ plot(0.1*data.Laps.TrialType,'r','linewidth',2)
 %saves struct S
 
 run_end = int_at_maze(:,2);
-max_d   = 30 * Fs; 
-min_d   = 10 * Fs; 
+max_d   = 4 * Fs; 
+min_d   = 0 * Fs; 
 cnt     = 1;
 try
     clear S;
@@ -344,16 +345,15 @@ for sp = 1 : length(markers)
     if ~isempty(lap_spw)
         S(cnt).marker = markers(sp,:);
         S(cnt).lap_It_Belongs = lap_spw;
-        S(cnt).lap_type = data.Laps.TrialType(ceil(markers(sp,1)))+1;
+        S(cnt).lap_type = data.Laps.TrialType(ceil(markers(sp,1)));
+        S(cnt).name_lap_It_Belongs = typetrial{S(cnt).lap_type};
         S(cnt).markerId = sp;
         %extract spikes
         idx_run               = ceil(markers(sp,1):markers(sp,2));
         S(cnt).duration       = (idx_run(end)-idx_run(1));
         c_cnt                 = 1;
         S(cnt).spk_train      = zeros(n_cells, S(cnt).duration);
-        
-        %plot(repmat(markers(sp,1),1,2),ylim,'m')
-
+        plot(repmat(markers(sp,1),1,2),ylim,'m')
         
         for neu=1:n_cells
             idx = spk{neu}>=idx_run(1) & spk{neu}<=idx_run(end);
@@ -382,23 +382,106 @@ for sp = 1 : n_spws
     sct_run(sp,:) = sum(SpkRun_DH(S(sp).lap_It_Belongs).data,2);
 end
 
-%those SPWs after Right Alt: type 2, after left error, i.e., right: type 3
-X_type2 = [sct_spw([S.lap_type]==2,:)' sct_run([S.lap_type]==2,:)'];
-X_type3 = [sct_spw([S.lap_type]==3,:)' sct_run([S.lap_type]==3,:)'];
+%Spikes from left alts. Since there are no SPWs after L alt. they have to
+%be extracted directly from D
+cnt_r = 1;
+cnt_l = 1;
+laps_left = [];
+laps_right = [];
+clear scn*
+for lap = 1 : length(D)
+   if strcmp(D(lap).condition, 'left')
+       scn_left(:,cnt_l) = sum(D(lap).data,2);
+       laps_left(end+1)  = D(lap).trialId;
+       cnt_l = cnt_l + 1;
+   elseif strcmp(D(lap).condition, 'right')
+       scn_right(:,cnt_r) = sum(D(lap).data,2);
+       laps_right(end+1)  = D(lap).trialId;
 
-n_type2 = sum([S.lap_type]==2);
-n_type3 = sum([S.lap_type]==3);
+       cnt_r = cnt_r + 1;
+   else
+       D(lap).condition
+   end    
+end
 
-g_mean_type2 = [mean(X_type2(:,1:n_type2),2) mean(X_type2(:,n_type2+1:end),2)];
-g_mean_type3 = [mean(X_type3(:,1:n_type3),2) mean(X_type3(:,n_type3+1:end),2)];
+%Feature scaling, min = zero
+Th_left         = mean(scn_left,2);
+Th_left_sc      = Th_left./max(Th_left);
+Th_right        = mean(scn_right,2);
+Th_right_sc     = Th_right./max(Th_right);
+Th_spw_right    = mean(sct_run([S.lap_type]==1,:))';
+Th_spw_right_sc = Th_spw_right./max(Th_spw_right);
+Th_spw_left    = mean(sct_run([S.lap_type]==2,:))';
+Th_spw_left_sc = Th_spw_left./max(Th_spw_left);
 
-%Feature scaling
-g_mean_type2_sca = g_mean_type2./repmat(max(g_mean_type2),size(g_mean_type2,1),1);
-g_mean_type3_sca = g_mean_type3./repmat(max(g_mean_type3),size(g_mean_type3,1),1);
+SPW_right       = mean(sct_spw([S.lap_type]==1,:))';
+SPW_right_sc    = SPW_right./max(SPW_right);
+SPW_left        = mean(sct_spw([S.lap_type]==2,:))';
+SPW_left_sc     = SPW_left./max(SPW_left);
 
-plot(g_mean_type2_sca), hold on
-plot(g_mean_type3_sca)
-%control case
+plot(Th_left_sc), hold on
+plot(Th_right_sc)
+plot(SPW_left_sc, '--')
+plot(SPW_right_sc, '--')
+
+%=========================================================================%
+%====================      Correlations    ===============================%
+%=========================================================================%
+% Theta Right vs Theta Left
+% Theta Right vs SPW right
+% Theta Left vs SPW right
+% SPW LeftE vs SPW right
+%%
+X = {'Th_right_sc', 'Th_left_sc', 'Th_right_sc', 'Th_spw_right_sc',...
+    'Th_spw_right_sc', 'Th_spw_left_sc', 'SPW_right_sc',...
+    'Th_spw_right_sc','Th_spw_left_sc',};
+
+Y = {'Th_spw_right_sc', 'Th_spw_left_sc', 'Th_left_sc', 'Th_spw_left_sc',...
+    'SPW_right_sc', 'SPW_left_sc', 'SPW_left_sc',...
+    'SPW_left_sc','SPW_right_sc'};
+
+%(Right theta vs Error Left, i.e., right)
+for cv = 1 : length(X)
+    x = eval(X{cv});
+    y = eval(Y{cv});
+
+    figure(cv), hold on
+    set(gcf, 'position', [1000 100 483 300], 'color', 'w')
+    color = parula(length(x));
+
+    for k = 1 : length(x)
+        plot(x(k),y(k), 'ok',...
+            'Markerfacecolor',color(k,:))
+    end
+    %robtus fit
+    brob = robustfit(x,y);
+    y_reg = brob(1)+brob(2)*x;
+    plot(x,y_reg,'r-')
+    R = 1 - sum((y - y_reg).^2)/(sum((y - mean(y)).^2));
+    title(sprintf('R^2 = %1.4f => %3.3f+%3.3fx ',R,brob(1),brob(2)))
+
+    hold on, grid on
+    axis([0 1 0 1])
+    xlabel(strrep(X{cv},'_',' '))
+    ylabel(strrep(Y{cv},'_',' '))
+    set(gca,'FontSize',12)
+    set(gcf,'PaperUnits','centimeters','PaperPosition',[0 0 10 6.25])
+    
+    handaxes2 = axes('Position', [0.6 0.3 0.3 0.3]);
+    hold on
+    for k = 1 : length(x)
+        plot(x(k),y(k), 'ok',...
+            'Markerfacecolor',color(k,:))
+    end
+    plot(x,y_reg,'r-')
+    axis([0 0.1 0 0.1])
+    set(handaxes2, 'Box', 'off','fontsize',9)
+    
+    %print(gcf,[roots{animal} sprintf('Corr_%s_%s.png',X{cv},Y{cv})],'-dpng')
+    
+    clear x y brob
+end
+%(Right theta vs right spw)
 
 %% =======================================================================%
 %========            (3) Test model on SPWs              =================%
@@ -413,7 +496,7 @@ params          = result_D_left.params{ifold};
  D               = filter_condition(D, spw_tag{1}, 2);
  %D               = D(20:30);
  [traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);
- [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
+ [Xorth, Corth]  = orthogonalize([traj.xsm], params.C);
  
  T              = [0 cumsum([D.T])];
  

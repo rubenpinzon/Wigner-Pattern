@@ -273,13 +273,48 @@ for s = 1 : length(conditions)
         
 end
 
+%% =====Effects of changing the kernel lenght on the latent variables=====
+
+s_gamma = [0.1 0.5 1 2 10];
+c           = lines(length(s_gamma));
+figure(11)
+set(gcf, 'position', [1,1,1424,400], 'color', 'w')
+for i = 1 :length(s_gamma)
+    s               = 1;
+    Data            = eval(sprintf('D%s',conditions{s}));
+    Result          = eval(sprintf('result_D%s;',conditions{s}));
+    Result.params{ifold}.gamma = s_gamma(i)*Result.params{ifold}.gamma;
+    mask            = false(1,length(Data)); % for cross validation
+    cv_trials       = Result.cv_trials;
+    fold_indx       = Result.foldidx;
+    ifold           = 1;
+    ilap            = 1;
+
+    test_mask       = mask;
+    test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+    test_data  = Data(test_mask);
+    %Posterior of test data given the trained model
+    [traj, ll_te] = exactInferenceWithLL(test_data, Result.params{ifold},'getLL',1);
+    % orthogonalize the trajectories4
+    [Xorth, Corth, TT, EE] = orthogonalize([traj.xsm], Result.params{ifold}.C);
+    T              = [0 cumsum([test_data.T])];
+    
+
+    color = jet(length(traj));
+    start_traj = []; end_traj = [];
+    lap_t = T(ilap)+1:T(ilap+1); 
+    plot_latent(Xorth(:,lap_t), c(i,:), sprintf('mult. length %2.2f',s_gamma(i)))
+    
+end
+
 
 %% =======================================================================%
 %======== (2) Get SPWs in the reward or wheel area       =================%
 %=========================================================================%
 
-markers = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
-updateGP = true;
+markers     = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
+updateGP    = true;
+removeInh   = true;
 
 figure(20), hold on
 set(gcf, 'position', [0 1 1000 300], 'color', 'w')
@@ -292,22 +327,34 @@ plot(0.1*data.Laps.TrialType,'r','linewidth',2)
 
 %selects those SPWs that are close to the runs and extracts spks
 %saves struct S
+
 run_end = int_at_maze(:,2);
-min_d   = 20 * Fs; 
+max_d   = 30 * Fs; 
+min_d   = 10 * Fs; 
 cnt     = 1;
+try
+    clear S;
+catch
+   disp('Data cleaned') 
+end
+
 for sp = 1 : length(markers)
-    d_spw2run = run_end - markers(sp,1)*ones(length(run_end),1);
-    lap_spw = find(abs(d_spw2run(d_spw2run<0)) <= min_d);
+    d_spw2run   = run_end - markers(sp,1)*ones(length(run_end),1);
+    lap_spw     = find(abs(d_spw2run(d_spw2run<0)) <= max_d & abs(d_spw2run(d_spw2run<0)) >= min_d);
     if ~isempty(lap_spw)
         S(cnt).marker = markers(sp,:);
         S(cnt).lap_It_Belongs = lap_spw;
         S(cnt).lap_type = data.Laps.TrialType(ceil(markers(sp,1)))+1;
-
+        S(cnt).markerId = sp;
         %extract spikes
         idx_run               = ceil(markers(sp,1):markers(sp,2));
         S(cnt).duration       = (idx_run(end)-idx_run(1));
         c_cnt                 = 1;
         S(cnt).spk_train      = zeros(n_cells, S(cnt).duration);
+        
+        %plot(repmat(markers(sp,1),1,2),ylim,'m')
+
+        
         for neu=1:n_cells
             idx = spk{neu}>=idx_run(1) & spk{neu}<=idx_run(end);
             %aligned to the start of the section
@@ -318,60 +365,62 @@ for sp = 1 : length(markers)
             c_cnt = c_cnt + 1;
         end
         cnt = cnt + 1;
-    end    
+    end 
+    
+end
+n_spws = length(S);
+
+if removeInh
+    for sp = 1 : n_spws
+        S(sp).spk_train(isIntern==1,:) = [];
+    end 
 end
 
-%Parameters to used from trained models
+%compare the firing rate in the run for each cell with the SPW
+for sp = 1 : n_spws
+    sct_spw(sp,:) = sum(S(sp).spk_train,2);
+    sct_run(sp,:) = sum(SpkRun_DH(S(sp).lap_It_Belongs).data,2);
+end
+
+%those SPWs after Right Alt: type 2, after left error, i.e., right: type 3
+X_type2 = [sct_spw([S.lap_type]==2,:)' sct_run([S.lap_type]==2,:)'];
+X_type3 = [sct_spw([S.lap_type]==3,:)' sct_run([S.lap_type]==3,:)'];
+
+n_type2 = sum([S.lap_type]==2);
+n_type3 = sum([S.lap_type]==3);
+
+g_mean_type2 = [mean(X_type2(:,1:n_type2),2) mean(X_type2(:,n_type2+1:end),2)];
+g_mean_type3 = [mean(X_type3(:,1:n_type3),2) mean(X_type3(:,n_type3+1:end),2)];
+
+%Feature scaling
+g_mean_type2_sca = g_mean_type2./repmat(max(g_mean_type2),size(g_mean_type2,1),1);
+g_mean_type3_sca = g_mean_type3./repmat(max(g_mean_type3),size(g_mean_type3,1),1);
+
+plot(g_mean_type2_sca), hold on
+plot(g_mean_type3_sca)
+%control case
+
+%% =======================================================================%
+%========            (3) Test model on SPWs              =================%
+%=========================================================================%
+
 params          = result_D_left.params{ifold};
+ 
+ SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
+                      spw_type, color_spw, 'spw', 0);
+ 
+ D               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %2ms bin size
+ D               = filter_condition(D, spw_tag{1}, 2);
+ %D               = D(20:30);
+ [traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);
+ [Xorth, Corth] = orthogonalize([traj.xsm], params.C);
+ 
+ T              = [0 cumsum([D.T])];
+ 
+ %retrained the GPs
+ if updateGP
+     [paramsUP,seq,ll]      = update_gps(params, D, 150);
+     [traj, ll_te]  = exactInferenceWithLL(D, paramsUP,'getLL',1);
+     [Xorth, Corth] = orthogonalize([traj.xsm], paramsUP.C);
+ end
 
-SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
-                     spw_type, color_spw, 'spw', 0);
-
-D               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %4ms bin size
-D               = filter_condition(D, spw_tag{1}, 2);
-%D               = D(20:30);
-[traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);
-[Xorth, Corth] = orthogonalize([traj.xsm], params.C);
-
-T              = [0 cumsum([D.T])];
-
-%retrained the GPs
-if updateGP
-    [paramsUP,seq,ll]      = update_gps(params, D, 150);
-    [traj, ll_te]  = exactInferenceWithLL(D, paramsUP,'getLL',1);
-    [Xorth, Corth] = orthogonalize([traj.xsm], paramsUP.C);
-end
-
-%firing rates
-if showpred
-%Validation with LNO
-    cv_gpfa_cell = struct2cell(cosmoother_gpfa_viaOrth_fast...
-                              (D,paramsUP,zDim));
-
-    true_SPW       = [D.y];
-    T              = [0 cumsum([D.T])];
-    cvspw          = zeros(size(true_SPW));
-    for i = 1 : length(D)
-       cvspw(:, T(i)+1:T(i+1)) = cell2mat(cv_gpfa_cell(7,:,i));
-    end
-
-   plot_firing(cvspw, true_SPW, T)            
-end
-
-        
-
-figure(1)
-set(gcf, 'position', [1983,1,1424,973], 'color', 'w')
-color = jet(length(traj));
-for ilap = 1 : length(traj)
-   lap_t = T(ilap)+1:T(ilap+1);
-   plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),Xorth(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},color(ilap,:))           
-
-%    plot_xorth(Xorth(1,lap_t),Xorth(2,lap_t),[],3,{'X_1','X_2'},color(ilap,:))
-%    plot_xorth(Xorth(2,lap_t),Xorth(3,lap_t),[],6,{'X_2','X_3'},color(ilap,:))
-%    plot_xorth(Xorth(1,lap_t),Xorth(3,lap_t),[],9,{'X_1','X_3'},color(ilap,:))          
-
-end
-
-title_span(gcf,sprintf('Neural Space (SVD ort1ho) Condition %s (SPW) 2 ms bin','after_left'));        
-print(gcf,[roots{animal} sprintf('x_orth_cond%s(SPW)2ms.png','after_left')],'-dpng')

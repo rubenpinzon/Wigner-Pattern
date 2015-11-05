@@ -48,7 +48,7 @@ typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
 color           = jet(55);
 conditions      = {'_left', '_right', ''};
-middle_arm      = true;
+middle_arm      = false;
 %% =======================================================================%
 %==============   Extract Running Sections        ========================%
 %=========================================================================%
@@ -406,24 +406,38 @@ end
 
 %Feature scaling, min = zero
 Th_left         = mean(scn_left,2);
+Th_left_sd      = std(scn_left,1,2);
 Th_left_sc      = Th_left./max(Th_left);
+
 Th_right        = mean(scn_right,2);
+Th_right_sd     = std(scn_right,1,2);
 Th_right_sc     = Th_right./max(Th_right);
+
 Th_spw_right    = mean(sct_run([S.lap_type]==1,:))';
-Th_spw_right_sc = Th_spw_right./max(Th_spw_right);
+Th_spw_right_sd = std(sct_run([S.lap_type]==1,:))';
+
 Th_spw_left    = mean(sct_run([S.lap_type]==2,:))';
-Th_spw_left_sc = Th_spw_left./max(Th_spw_left);
+Th_spw_left_sd = std(sct_run([S.lap_type]==2,:))';
+
 
 SPW_right       = mean(sct_spw([S.lap_type]==1,:))';
+SPW_right_sd    = std(sct_spw([S.lap_type]==1,:))';
 SPW_right_sc    = SPW_right./max(SPW_right);
+
 SPW_left        = mean(sct_spw([S.lap_type]==2,:))';
+SPW_left_sd     = std(sct_spw([S.lap_type]==2,:))';
 SPW_left_sc     = SPW_left./max(SPW_left);
 
-plot(Th_left_sc), hold on
-plot(Th_right_sc)
-plot(SPW_left_sc, '--')
-plot(SPW_right_sc, '--')
-
+figure(10), hold on
+set(gcf, 'position', [1000 100 1000 300], 'color', 'w')
+plot(Th_left_sc, 'r', 'displayname','Th left sc'), hold on
+plot(Th_right_sc, 'b', 'displayname','Th right sc')
+plot(SPW_left_sc, '-.', 'displayname','SPW left sc')
+plot(SPW_right_sc, '--', 'displayname','SPW right sc')
+title(sprintf('Including the middle arm in the maze (0/1, No/Yes) = %d',middle_arm))
+xlabel('Cell Num.')
+ylabel('Scaled trial ave. spike cnt.')
+set(gca,'fontsize',12)
 %=========================================================================%
 %====================      Correlations    ===============================%
 %=========================================================================%
@@ -432,26 +446,39 @@ plot(SPW_right_sc, '--')
 % Theta Left vs SPW right
 % SPW LeftE vs SPW right
 %%
-X = {'Th_right_sc', 'Th_left_sc', 'Th_right_sc', 'Th_spw_right_sc',...
-    'Th_spw_right_sc', 'Th_spw_left_sc', 'SPW_right_sc',...
-    'Th_spw_right_sc','Th_spw_left_sc',};
+% X = {'Th_right', 'Th_left', 'Th_right', 'Th_spw_right',...
+%     'Th_spw_right', 'Th_spw_left', 'SPW_right',...
+%     'Th_spw_right','Th_spw_left',};
 
-Y = {'Th_spw_right_sc', 'Th_spw_left_sc', 'Th_left_sc', 'Th_spw_left_sc',...
-    'SPW_right_sc', 'SPW_left_sc', 'SPW_left_sc',...
-    'SPW_left_sc','SPW_right_sc'};
+% Y = {'Th_spw_right', 'Th_spw_left', 'Th_left', 'Th_spw_left',...
+%     'SPW_right', 'SPW_left', 'SPW_left',...
+%     'SPW_left','SPW_right'};
+X = {'SPW_right'};
+Y = {'SPW_left'};
+
+%indexes of cells that are discriminant of SPWs left/right
+cell_spw_l = find((SPW_left > 0 & SPW_right < 0.1))';
+cell_spw_r = find((SPW_left < 0.1 & SPW_right > 0))';
+
+idx_cells_spws = [cell_spw_l cell_spw_r];
 
 %(Right theta vs Error Left, i.e., right)
 for cv = 1 : length(X)
     x = eval(X{cv});
     y = eval(Y{cv});
-
+    x_sd = eval([X{cv} '_sd']);
+    y_sd = eval([Y{cv} '_sd']);
     figure(cv), hold on
     set(gcf, 'position', [1000 100 483 300], 'color', 'w')
     color = parula(length(x));
 
     for k = 1 : length(x)
-        plot(x(k),y(k), 'ok',...
-            'Markerfacecolor',color(k,:))
+        if any(abs(idx_cells_spws - k)<1e-10)
+            fprintf('X %d - Y %d\n',x(k),y(k))
+            errorbar(x(k),y(k),y_sd(k), 'ok',...
+                'Markerfacecolor',color(k,:))
+            herrorbar(x(k),y(k),x_sd(k),'k')
+        end
     end
     %robtus fit
     brob = robustfit(x,y);
@@ -461,7 +488,7 @@ for cv = 1 : length(X)
     title(sprintf('R^2 = %1.4f => %3.3f+%3.3fx ',R,brob(1),brob(2)))
 
     hold on, grid on
-    axis([0 1 0 1])
+    axis([[0 1].*xlim ylim])
     xlabel(strrep(X{cv},'_',' '))
     ylabel(strrep(Y{cv},'_',' '))
     set(gca,'FontSize',12)
@@ -470,14 +497,16 @@ for cv = 1 : length(X)
     handaxes2 = axes('Position', [0.6 0.3 0.3 0.3]);
     hold on
     for k = 1 : length(x)
-        plot(x(k),y(k), 'ok',...
-            'Markerfacecolor',color(k,:))
+        if any(abs(idx_cells_spws - k)<1e-10)
+            plot(x(k),y(k), 'ok',...
+                'Markerfacecolor',color(k,:))
+        end
     end
     plot(x,y_reg,'r-')
-    axis([0 0.1 0 0.1])
+    axis([0.1*xlim 0.1*ylim])
     set(handaxes2, 'Box', 'off','fontsize',9)
     
-    %print(gcf,[roots{animal} sprintf('Corr_%s_%s.png',X{cv},Y{cv})],'-dpng')
+    %print(gcf,[roots{animal} sprintf('Corr_%s_%s_selective.png',X{cv},Y{cv})],'-dpng')
     
     clear x y brob
 end

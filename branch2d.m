@@ -34,11 +34,11 @@ eeg             = data.Track.eeg;
 time            = linspace(0, length(eeg)/1250,length(eeg));
 speed           = data.Track.speed;
 isIntern        = data.Clu.isIntern;
-n_laps         = numel(laps)-1;
+n_laps          = numel(laps)-1;
 [spk, spk_lap]  = get_spikes(clusters, data.Spike.res,laps);
 typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
-color           = jet(55);
+color           = jet(sum(isIntern==0));
 removeInh       = true;
 %%
 % ========================================================================%
@@ -53,6 +53,9 @@ sect_in         = [7, 8];
 sect_out        = [7, 8];
 cnt             = 1;
 % Extract spks when the mouse is running and in the wheel to calculate
+try 
+    clear S
+end
 for lap = 1:n_laps  
     %(a) Runing in the wheel. Detected based on the speed of the wheel that
     %is a better indicator than the EnterSection time stamp
@@ -97,6 +100,8 @@ for lap = 1:n_laps
         n_spks_stop  = zeros(1,n_cells);
         n_spks_run   = zeros(1,n_cells);
         c_neu        = 0;
+        all_spks     = []; 
+        all_spks_id  = []; 
         for neu=1:n_cells
             if isIntern(neu) == 0
                 c_neu  = c_neu + 1;
@@ -106,6 +111,8 @@ for lap = 1:n_laps
                 n_spks_stop(neu) = sum(t_stop);
                 if n_spks_stop(neu) ~= 0
                     t_spks_stop{c_neu} = spk_lap{lap,neu}(t_stop) - idx_stop(1) + 1;
+                    all_spks(end+1:end + n_spks_stop(neu))    = t_spks_stop{c_neu};
+                    all_spks_id(end+1:end + n_spks_stop(neu)) = c_neu;
                 end
 
                 t_run = spk_lap{lap,neu}>=idx_run(1) & spk_lap{lap,neu}<=idx_run(end);
@@ -129,15 +136,16 @@ for lap = 1:n_laps
         S(cnt).Delay       = -period(w,2);
         S(cnt).speed_stop  = speed(idx_stop(1):idx_stop(2));
         S(cnt).speed_run   = speed(idx_run(1):idx_run(2));
+        S(cnt).all_spks_stop = [all_spks; all_spks_id];
         cnt                = cnt + 1;
-        clear t_* n_sp*
+        clear t_* n_sp* all*
     end    
 end    
 %%
 %shows move and stop sequences for control purposes. Saves png of first lap 
 t_ids      = [S.TrialId];
 unique_tr    = unique(t_ids);
-for seq = 1 : length(unique_tr)
+for seq = 1 : 1%length(unique_tr)
    seq_r    = unique_tr(seq); 
    n_events = sum(t_ids == unique_tr(seq));
    figure(seq)
@@ -165,7 +173,65 @@ print(figure(1),[roots{animal} 'Example_Run_stop_spks_lap.png'],'-dpng')
 %==============   Extract super vector of spikes     =====================%
 %=========================================================================%
 
+%50 ms window to detect disconnected sequences accoding to Foster & Wilson
+%60 ms window according to Diba Buszaki 2007
+%30% neurons active during hte replay to be considered a replay event 
+t_window = 0.05 * Fs;
+t_max    = 0.5 * Fs;
+n_mincell= 0.3 * sum(isIntern==0); %minimm number of cells active to be 
+                                   %replay preplay considered a event
+                                   %#TODO: this number is only counting place cells!!
 
+figure(2)
+set(gcf,'position',[1988,447,1826,102],'color','w')
 
-
+for seq = 1 : 1%length(S)
+    
+    %super spike
+    [s_spk,idx]    = sort(S(seq).all_spks_stop(1,:));
+    s_spk(2,:)     = S(seq).all_spks_stop(2,idx);
+    % show super vector       
+    for s = 1 : length(s_spk)
+       line(s_spk(1,s)*[1 1],[0 0.8],'color',color(s_spk(2,s),:),'linewidth',2)         
+    end
+    % calculate distances between spikes in super vector and show those
+    %larger than 50 ms;
+    dist_s     = diff(s_spk(1,:));
+    dist_proto = find(dist_s>t_window);
+    
+    for p = 1 : length(dist_proto)
+        proto_int(:,p) = [s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)];
+        line([s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)],[0.5 0.5],'color','k','linewidth',2) 
+        line(s_spk(1,dist_proto(p))*[1 1],[0.45 0.55],'color','k','linewidth',2)
+        line(s_spk(1,dist_proto(p)+1)*[1 1],[0.45 0.55],'color','k','linewidth',2)
+    end
+    %proto event has to be withing 500 ms. % odd values are disntace
+    %within event
+    len_proto = diff(proto_int(:)); 
+    %interval that fullfils the criteria
+    st_pnt_silent  = proto_int(1:2:end);
+    en_pnt_silent  = proto_int(2:2:end);
+    p_eve          = find(len_proto(2:2:end)<t_max);   
+    
+    for p = 1 : length(p_eve)
+        
+        proto(p,:) = [en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)];
+        idx_proto  = find(s_spk(1,:)>=proto(p,1) & s_spk(1,:)<=proto(p,2));
+        cell_proto{p} = unique(s_spk(2,idx_proto));   
+        
+        k = 'm';
+        if length(cell_proto{p}) > n_mincell
+            k = 'r';
+        end
+        line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.5 0.5],'color',k,'linewidth',2) 
+        line(en_pnt_silent(p_eve(p))*[1 1],[0.45 0.55],'color',k,'linewidth',2)
+        line(st_pnt_silent(p_eve(p)+1)*[1 1],[0.45 0.55],'color',k,'linewidth',2)
+    end
+    
+    %at least 30% of cells active in proto event to be consider event
+    
+end
+text(sum(xlim)/4,1,sprintf('Silent periods %d ms',t_window*Fs))
+text(sum(xlim)/2,1,'Events (>30% cells active)','color','r')
+text(3*sum(xlim)/4,1,'Proto Events (<30% cells active)','color','m')
 

@@ -12,7 +12,6 @@ import scipy.integrate as integral
 import csv
 import os
 
-
 def place_field(xmax=100, firing_rate=0.1, baseline=0.0001, **kwargs):
     """
     Creates a 1D Gaussian place field with center pos and

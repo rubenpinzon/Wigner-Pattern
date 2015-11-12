@@ -40,6 +40,7 @@ Fs              = data.Par.SamplingFrequency;
 X               = data.Track.X;
 Y               = data.Track.Y;
 eeg             = data.Track.eeg;
+time            = linspace(0, length(eeg)/1250,length(eeg));
 speed           = data.Track.speed;
 isIntern        = data.Clu.isIntern;
 numLaps         = numel(laps)-1;
@@ -48,15 +49,15 @@ typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
 color           = jet(55);
 conditions      = {'_left', '_right', ''};
-middle_arm      = false;
-%% =======================================================================%
+middle_arm      = true;
+% =======================================================================%
 %==============   Extract Running Sections        ========================%
 %=========================================================================%
 debug           = true; %to show diganostic plots
 %this is to remove/add the section in the middle arm of the maze
 sect            = [3, 4];   
 if middle_arm
-   sect = 2; 
+   sect = 1; 
 end
 % Extract spks when the mouse is running and in the wheel to calculate
 for lap = 1:numLaps  
@@ -66,8 +67,8 @@ for lap = 1:numLaps
     idx_run                 = [sum(events{lap}(sect,1)), sum(events{lap}(5:6,2))];
     int_at_maze(lap, :)     = idx_run;
     run_len(lap)            = (idx_run(2)-idx_run(1))/Fs;
-    X_lap{lap}          = X(idx_run(1):idx_run(2));
-    Y_lap{lap}          = Y(idx_run(1):idx_run(2));
+    X_lap{lap}              = X(idx_run(1):idx_run(2));
+    Y_lap{lap}              = Y(idx_run(1):idx_run(2));
     speed_lap               = speed(idx_run(1):idx_run(2));
 
     %sect 1:enter, 6:exit
@@ -101,7 +102,7 @@ end
 % different lenghts
 
 MaxTimeE            = floor(Fs * run_len);
-onlyCorrectTrial    = true;
+onlyCorrectTrial    = false;
 %Data processed for datahigh without interneuorns
 SpkRun_DH           = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
                      trial, color_trial, 'run', onlyCorrectTrial);
@@ -320,18 +321,16 @@ removeInh   = true;
 figure(20), hold on
 set(gcf, 'position', [0 1 1000 300], 'color', 'w')
 %plot(eeg./max(eeg),'color',[0.8, 0.8, 0.8]), hold on
-plot(0.08*mazesect-0.5,'-.k')
+plot(0.08*mazesect-0.5,'-.k', 'displayname','Maze Sects.')
 ylim([-0.6 0.6])
 plot(repmat(markers(:,1),1,2),ylim,'b')
 plot(repmat(markers(:,2),1,2),ylim,'c')
-plot(0.1*data.Laps.TrialType,'r','linewidth',2)
-
+plot(0.1*data.Laps.TrialType,'r','linewidth',2, 'displayname','Performance')
+%%
 %selects those SPWs that are close to the runs and extracts spks
 %saves struct S
 
 run_end = int_at_maze(:,2);
-max_d   = 4 * Fs; 
-min_d   = 0 * Fs; 
 cnt     = 1;
 try
     clear S;
@@ -339,15 +338,26 @@ catch
    disp('Data cleaned') 
 end
 
+last_lap = 0;
+
 for sp = 1 : length(markers)
     d_spw2run   = run_end - markers(sp,1)*ones(length(run_end),1);
-    lap_spw     = find(abs(d_spw2run(d_spw2run<0)) <= max_d & abs(d_spw2run(d_spw2run<0)) >= min_d);
+    [t_from_run,lap_spw] = max(d_spw2run(d_spw2run<0));   
+    
     if ~isempty(lap_spw)
+        if lap_spw == last_lap
+            cnt_inside_lap = cnt_inside_lap + 1;
+        else
+            cnt_inside_lap = 1;
+        end
+        last_lap = lap_spw;
         S(cnt).marker = markers(sp,:);
         S(cnt).lap_It_Belongs = lap_spw;
         S(cnt).lap_type = data.Laps.TrialType(ceil(markers(sp,1)));
         S(cnt).name_lap_It_Belongs = typetrial{S(cnt).lap_type};
         S(cnt).markerId = sp;
+        S(cnt).time_from_run = t_from_run/Fs;
+        S(cnt).cnt_inside_lap = cnt_inside_lap;
         %extract spikes
         idx_run               = ceil(markers(sp,1):markers(sp,2));
         S(cnt).duration       = (idx_run(end)-idx_run(1));
@@ -368,76 +378,58 @@ for sp = 1 : length(markers)
     end 
     
 end
-n_spws = length(S);
-
+n_spws          = length(S);
+first_spw       = [S.cnt_inside_lap] == 1;
+t_first_spw     = [S.lap_type];
+t_first_spw     = t_first_spw(first_spw);
+fprintf('Animal = %s,Num. 1st spws %d, type I= %d, II=%d, III=%d, IV=%d\n',...
+    roots{animal},length(t_first_spw),sum(t_first_spw==1),sum(t_first_spw==2),...
+    sum(t_first_spw==3), sum(t_first_spw==4))
+%
 if removeInh
     for sp = 1 : n_spws
         S(sp).spk_train(isIntern==1,:) = [];
     end 
 end
-
+%%
+%Get only First Spws:
+%S           = S(first_spw); 
+n_spws      = length(S);
 %compare the firing rate in the run for each cell with the SPW
 for sp = 1 : n_spws
-    sct_spw(sp,:) = sum(S(sp).spk_train,2);
-    sct_run(sp,:) = sum(SpkRun_DH(S(sp).lap_It_Belongs).data,2);
+    spk_cnt_spw(sp,:) = sum(S(sp).spk_train,2);
+    spk_cnt_run(sp,:) = sum(SpkRun_DH(S(sp).lap_It_Belongs).data,2);
 end
 
 %Spikes from left alts. Since there are no SPWs after L alt. they have to
 %be extracted directly from D
-cnt_r = 1;
-cnt_l = 1;
-laps_left = [];
-laps_right = [];
-clear scn*
-for lap = 1 : length(D)
-   if strcmp(D(lap).condition, 'left')
-       scn_left(:,cnt_l) = sum(D(lap).data,2);
-       laps_left(end+1)  = D(lap).trialId;
-       cnt_l = cnt_l + 1;
-   elseif strcmp(D(lap).condition, 'right')
-       scn_right(:,cnt_r) = sum(D(lap).data,2);
-       laps_right(end+1)  = D(lap).trialId;
 
-       cnt_r = cnt_r + 1;
-   else
-       D(lap).condition
-   end    
-end
-
-%Feature scaling, min = zero
-Th_left         = mean(scn_left,2);
-Th_left_sd      = std(scn_left,1,2);
-Th_left_sc      = Th_left./max(Th_left);
-
-Th_right        = mean(scn_right,2);
-Th_right_sd     = std(scn_right,1,2);
-Th_right_sc     = Th_right./max(Th_right);
-
-Th_spw_right    = mean(sct_run([S.lap_type]==1,:))';
-Th_spw_right_sd = std(sct_run([S.lap_type]==1,:))';
-
-Th_spw_left    = mean(sct_run([S.lap_type]==2,:))';
-Th_spw_left_sd = std(sct_run([S.lap_type]==2,:))';
-
-
-SPW_right       = mean(sct_spw([S.lap_type]==1,:))';
-SPW_right_sd    = std(sct_spw([S.lap_type]==1,:))';
-SPW_right_sc    = SPW_right./max(SPW_right);
-
-SPW_left        = mean(sct_spw([S.lap_type]==2,:))';
-SPW_left_sd     = std(sct_spw([S.lap_type]==2,:))';
-SPW_left_sc     = SPW_left./max(SPW_left);
-
-figure(10), hold on
+figure(10), hold on, grid on
 set(gcf, 'position', [1000 100 1000 300], 'color', 'w')
-plot(Th_left_sc, 'r', 'displayname','Th left sc'), hold on
-plot(Th_right_sc, 'b', 'displayname','Th right sc')
-plot(SPW_left_sc, '-.', 'displayname','SPW left sc')
-plot(SPW_right_sc, '--', 'displayname','SPW right sc')
-title(sprintf('Including the middle arm in the maze (0/1, No/Yes) = %d',middle_arm))
+color = [1 0 0; 0 0 1];
+for type = 1 : 2
+    ave_spk   = mean(spk_cnt_spw([S.lap_type]==type,:));
+    std_spk   = std(spk_cnt_spw([S.lap_type]==type,:));
+    eval(['spw_' typetrial{type} '=ave_spk;']) 
+    eval(['spw_' typetrial{type} '_sd=std_spk;'])
+    eval(['spw_' typetrial{type} '_zscore=(ave_spk - mean(ave_spk))./(std(ave_spk));'])
+    plot((ave_spk - mean(ave_spk))./(std(ave_spk)),'displayname',typetrial{type}, 'color', color(type,:))   
+    
+    ave_spk   = mean(spk_cnt_run([S.lap_type]==type,:));
+    std_spk   = std(spk_cnt_run([S.lap_type]==type,:));
+    eval(['theta_' typetrial{type} '=ave_spk;']) 
+    eval(['theta_' typetrial{type} '_sd=std_spk;']) 
+    eval(['theta_' typetrial{type} '_zscore=(ave_spk - mean(ave_spk))./(std(ave_spk));'])
+    plot((ave_spk - mean(ave_spk))./(std(ave_spk)),'-.','displayname',['Theta' typetrial{type}], 'color', color(type,:))   
+
+    clear ave* std*
+end
 xlabel('Cell Num.')
-ylabel('Scaled trial ave. spike cnt.')
+ylabel('Z scored ave. spk. cnt')
 set(gca,'fontsize',12)
+
+
+%%
 %=========================================================================%
 %====================      Correlations    ===============================%
 %=========================================================================%
@@ -445,47 +437,38 @@ set(gca,'fontsize',12)
 % Theta Right vs SPW right
 % Theta Left vs SPW right
 % SPW LeftE vs SPW right
-%%
-% X = {'Th_right', 'Th_left', 'Th_right', 'Th_spw_right',...
-%     'Th_spw_right', 'Th_spw_left', 'SPW_right',...
-%     'Th_spw_right','Th_spw_left',};
+%
+%The names in the variables X and Y are used for the correlations
 
-% Y = {'Th_spw_right', 'Th_spw_left', 'Th_left', 'Th_spw_left',...
-%     'SPW_right', 'SPW_left', 'SPW_left',...
-%     'SPW_left','SPW_right'};
-X = {'SPW_right'};
-Y = {'SPW_left'};
+X = {'spw_left_zscore', 'theta_left_zscore', 'theta_left_zscore',...
+    'theta_left_zscore', };
+Y = {'spw_right_zscore','theta_right_zscore','spw_right_zscore',...
+    'spw_left_zscore'};
 
-%indexes of cells that are discriminant of SPWs left/right
-cell_spw_l = find((SPW_left > 0 & SPW_right < 0.1))';
-cell_spw_r = find((SPW_left < 0.1 & SPW_right > 0))';
-
-idx_cells_spws = [cell_spw_l cell_spw_r];
 
 %(Right theta vs Error Left, i.e., right)
 for cv = 1 : length(X)
     x = eval(X{cv});
     y = eval(Y{cv});
-    x_sd = eval([X{cv} '_sd']);
-    y_sd = eval([Y{cv} '_sd']);
+    %x_sd = eval([X{cv} '_sd']);
+    %y_sd = eval([Y{cv} '_sd']);
     figure(cv), hold on
     set(gcf, 'position', [1000 100 483 300], 'color', 'w')
     color = parula(length(x));
 
-    for k = 1 : length(x)
-        if any(abs(idx_cells_spws - k)<1e-10)
-            fprintf('X %d - Y %d\n',x(k),y(k))
-            errorbar(x(k),y(k),y_sd(k), 'ok',...
-                'Markerfacecolor',color(k,:))
-            herrorbar(x(k),y(k),x_sd(k),'k')
-        end
+    for k = 1 : length(x)        
+        %errorbar(x(k),y(k),y_sd(k), 'ok',...
+        %    'Markerfacecolor',color(k,:))
+        %herrorbar(x(k),y(k),x_sd(k),'k') 
+        plot(x(k),y(k),'ok',...
+           'Markerfacecolor',color(k,:))
     end
     %robtus fit
     brob = robustfit(x,y);
     y_reg = brob(1)+brob(2)*x;
     plot(x,y_reg,'r-')
     R = 1 - sum((y - y_reg).^2)/(sum((y - mean(y)).^2));
-    title(sprintf('R^2 = %1.4f => %3.3f+%3.3fx ',R,brob(1),brob(2)))
+    title(sprintf('R^2 = %1.4f => %3.5e+%3.3fx ',R,brob(1),brob(2)))
 
     hold on, grid on
     axis([[0 1].*xlim ylim])
@@ -494,19 +477,7 @@ for cv = 1 : length(X)
     set(gca,'FontSize',12)
     set(gcf,'PaperUnits','centimeters','PaperPosition',[0 0 10 6.25])
     
-    handaxes2 = axes('Position', [0.6 0.3 0.3 0.3]);
-    hold on
-    for k = 1 : length(x)
-        if any(abs(idx_cells_spws - k)<1e-10)
-            plot(x(k),y(k), 'ok',...
-                'Markerfacecolor',color(k,:))
-        end
-    end
-    plot(x,y_reg,'r-')
-    axis([0.1*xlim 0.1*ylim])
-    set(handaxes2, 'Box', 'off','fontsize',9)
-    
-    %print(gcf,[roots{animal} sprintf('Corr_%s_%s_selective.png',X{cv},Y{cv})],'-dpng')
+    print(gcf,[roots{animal} sprintf('Corr_%s_%s_selective.png',X{cv},Y{cv})],'-dpng')
     
     clear x y brob
 end

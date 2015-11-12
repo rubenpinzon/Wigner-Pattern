@@ -45,10 +45,10 @@ removeInh       = true;
 %==============   Extract Stopping section after run =====================%
 %=========================================================================%
 
-debug           = false; %to show diganostic plots
+debug           = true; %to show diganostic plots
 speed_th        = 200;
 %this is to remove/add the section in the middle arm of the maze
-sect            = [3 4]; %without middle arm 
+sect            = [2 3]; %without middle arm 
 sect_in         = [7, 8]; 
 sect_out        = [7, 8];
 cnt             = 1;
@@ -61,7 +61,7 @@ for lap = 1:n_laps
     %is a better indicator than the EnterSection time stamp
     idx_run                 = [sum(events{lap}(sect,1)), sum(events{lap}(5:6,2))];
     if idx_run(1)>idx_run(2)
-        fprintf('WARNING: Lap %d animal gor crazy, skipping\n',lap)
+        fprintf('WARNING: Lap %d animal got crazy, skipping\n',lap)
         continue
     end
     idx_stop                = [sum(events{lap}(sect_in,1)), sum(events{lap}(sect_out,2))];
@@ -145,7 +145,7 @@ end
 %shows move and stop sequences for control purposes. Saves png of first lap 
 t_ids      = [S.TrialId];
 unique_tr    = unique(t_ids);
-for seq = 1 : 1%length(unique_tr)
+for seq = 3 : 3%length(unique_tr)
    seq_r    = unique_tr(seq); 
    n_events = sum(t_ids == unique_tr(seq));
    figure(seq)
@@ -182,11 +182,11 @@ n_mincell= 0.3 * sum(isIntern==0); %minimm number of cells active to be
                                    %replay preplay considered a event
                                    %#TODO: this number is only counting place cells!!
 
-figure(2)
-set(gcf,'position',[1988,447,1826,102],'color','w')
 
-for seq = 1 : 1%length(S)
-    
+
+for seq = 1 : length(S)
+    figure(10+seq)
+    set(gcf,'position',[1988,447,1826,102],'color','w')
     %super spike
     [s_spk,idx]    = sort(S(seq).all_spks_stop(1,:));
     s_spk(2,:)     = S(seq).all_spks_stop(2,idx);
@@ -199,39 +199,44 @@ for seq = 1 : 1%length(S)
     dist_s     = diff(s_spk(1,:));
     dist_proto = find(dist_s>t_window);
     
-    for p = 1 : length(dist_proto)
-        proto_int(:,p) = [s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)];
-        line([s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)],[0.5 0.5],'color','k','linewidth',2) 
-        line(s_spk(1,dist_proto(p))*[1 1],[0.45 0.55],'color','k','linewidth',2)
-        line(s_spk(1,dist_proto(p)+1)*[1 1],[0.45 0.55],'color','k','linewidth',2)
-    end
-    %proto event has to be withing 500 ms. % odd values are disntace
-    %within event
-    len_proto = diff(proto_int(:)); 
-    %interval that fullfils the criteria
-    st_pnt_silent  = proto_int(1:2:end);
-    en_pnt_silent  = proto_int(2:2:end);
-    p_eve          = find(len_proto(2:2:end)<t_max);   
-    
-    for p = 1 : length(p_eve)
+    if ~isempty(dist_proto)
         
-        proto(p,:) = [en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)];
-        idx_proto  = find(s_spk(1,:)>=proto(p,1) & s_spk(1,:)<=proto(p,2));
-        cell_proto{p} = unique(s_spk(2,idx_proto));   
-        
-        k = 'm';
-        if length(cell_proto{p}) > n_mincell
-            k = 'r';
+        for p = 1 : length(dist_proto)
+            proto_int(:,p) = [s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)];
+            line([s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)],[0.5 0.5],'color','k','linewidth',2) 
+            line(s_spk(1,dist_proto(p))*[1 1],[0.43 0.57],'color','k','linewidth',2)
+            line(s_spk(1,dist_proto(p)+1)*[1 1],[0.43 0.57],'color','k','linewidth',2)
         end
-        line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.5 0.5],'color',k,'linewidth',2) 
-        line(en_pnt_silent(p_eve(p))*[1 1],[0.45 0.55],'color',k,'linewidth',2)
-        line(st_pnt_silent(p_eve(p)+1)*[1 1],[0.45 0.55],'color',k,'linewidth',2)
+        %proto event has to be withing 500 ms. % odd values are disntace
+        %within event
+        len_proto = diff(proto_int(:)); 
+        %interval that fullfils the criteria
+        st_pnt_silent  = proto_int(1:2:end);
+        en_pnt_silent  = proto_int(2:2:end);
+        p_eve          = find(len_proto(2:2:end)<t_max);   
+
+        for p = 1 : length(p_eve)
+
+            proto(p,:) = [en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)];
+            idx_proto  = find(s_spk(1,:)>=proto(p,1) & s_spk(1,:)<=proto(p,2));
+            cell_proto{p} = unique(s_spk(2,idx_proto));   
+
+            k = 'm';
+            if length(cell_proto{p}) > n_mincell
+                k = 'r';
+            end
+            line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.5 0.5],'color',k,'linewidth',2) 
+            line(en_pnt_silent(p_eve(p))*[1 1],[0.45 0.55],'color',k,'linewidth',2)
+            line(st_pnt_silent(p_eve(p)+1)*[1 1],[0.45 0.55],'color',k,'linewidth',2)
+        end
+
+        %at least 30% of cells active in proto event to be consider event
+        clear proto_int len_proto 
+        text(sum(xlim)/4,1,sprintf('Silent periods >=%2.1f ms',1000*t_window/Fs))
+        text(sum(xlim)/2,1,'Events (>30% cells active)','color','r')
+        text(3*sum(xlim)/4,1,'Proto Events (<30% cells active)','color','m')
+        drawnow
     end
-    
-    %at least 30% of cells active in proto event to be consider event
-    
 end
-text(sum(xlim)/4,1,sprintf('Silent periods %d ms',t_window*Fs))
-text(sum(xlim)/2,1,'Events (>30% cells active)','color','r')
-text(3*sum(xlim)/4,1,'Proto Events (<30% cells active)','color','m')
+
 

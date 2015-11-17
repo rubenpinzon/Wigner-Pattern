@@ -72,7 +72,7 @@ for lap = 1:numLaps
             spikes{cnt} = spk_lap{lap,neu}(idx) - idx_lap(1) + 1;
             tmp(spikes{cnt}) = 1; 
             %convolve the spike trains with a gauss filter 100 ms
-            firing(cnt,:) = conv(tmp,kernel, 'same');
+            firing(cnt,:) = Fs*conv(tmp,kernel, 'same');
         end
     end
     if debug
@@ -107,36 +107,78 @@ if debug
 end
 
 %% temporal aligment for the place fields across laps
+close all
+psth_w              = 0.02 * Fs;
+lap_types           = [D.type];
+crit_pastalkova1    = 6 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
+crit_pastalkova2    = 5 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
 
-psth_w    = 0.02 * Fs;
-lap_types = [D.type];
-for con = 2 : 2%length(typetrial)
+for con = 1 : 2%length(typetrial)
    figure(con) 
    lap_same      = find(lap_types == con);
-   lap_durations = [D(lap_same).duration];
-   mu_duration   = mean(lap_durations);
-   sd_duration   = std(lap_durations);
    
-   
-   %remove laps away from the mean duration
-   remove_lap = find(abs(lap_durations - mu_duration)>1.5*sd_duration);
-   lap_same(remove_lap) = [];
-   %longest lap
-   max_lap = max([D(lap_same).duration]);
-   for n = 1 : n_pyrs
-       subplot(10,9,n)
-       tmp = zeros(1,max_lap);
-       for j = 1 : numel(lap_same)
-           lap          = lap_same(j);
-           spike_train  = D(lap).firing_rate(n,:);
-           if D(lap).duration ~= max_lap+1
-               spike_train = interp1(spike_train,linspace(0,length(spike_train),max_lap));
+   if ~isempty(lap_same)
+       lap_durations = [D(lap_same).duration];
+       mu_duration   = mean(lap_durations);
+       sd_duration   = std(lap_durations);
+
+       %remove laps away from the mean duration
+       remove_lap = find(abs(lap_durations - mu_duration)>1.5*sd_duration);
+       lap_same(remove_lap) = [];
+       %longest lap
+       max_lap          = max([D(lap_same).duration]);
+       pastalkova_1     = false(1,n_pyrs);  
+       pastalkova_2     = false(1,n_pyrs);    
+       mu_pfield        = zeros(n_pyrs, max_lap);
+       
+       for n = 1 : n_pyrs
+           subplot(10,9,n)
+           %figure(n)
+           tmp = zeros(1,max_lap);
+           for j = 1 : numel(lap_same)
+               lap          = lap_same(j);
+               spike_train  = D(lap).firing_rate(n,:);
+               if D(lap).duration ~= max_lap+1
+                   spike_train = interp1(spike_train,linspace(0,length(spike_train),max_lap));
+               end
+               tmp = tmp + spike_train;
+               plot(spike_train,'color',color(j,:)), hold on    
+
            end
-           tmp = tmp + spike_train;
-           plot(spike_train,'color',color(j,:)), hold on       
+           %title(sprintf('n%d',n))
+           %ylabel('Hz')
+           tmp            = tmp./numel(lap_same); 
+           mu_pfield(n,:) = tmp;
+
+           tmp_color = 'k';
+           %criteria for place fields
+           if  max(tmp) >= crit_pastalkova1
+              pastalkova_1(n) = true; 
+              tmp_color = 'r';
+           end   
+           if max(tmp) >= crit_pastalkova2 && max(tmp) > 3*std(tmp(~isnan(tmp))) + mean(tmp(~isnan(tmp)))
+              pastalkova_2(n) = true;
+              tmp_color = 'm'; 
+              if strcmp(tmp_color, 'r')
+                tmp_color = 'g'; 
+              end
+           end
+
+           plot(mu_pfield(n,:), tmp_color, 'linewidth',2)
+           xlim([0 max_lap])
+           line(xlim, crit_pastalkova1*[1 1],'color',[0.5 0.5 0.5])
+           %drawnow
        end
-       plot(tmp./numel(lap_same), 'k', 'linewidth',2)
-       xlim([0 max_lap])
+       C(con).condition = typetrial{con};
+       C(con).mu_pfield = mu_pfield;
+       C(con).pastalkova1 = pastalkova_1;
+       C(con).pastalkova2 = pastalkova_2;
+       C(con).n_pfield = sum(pastalkova_1);  
+       C(con).mean_dur_lap = mu_duration;
+       C(con).sd_dur_lap = sd_duration;
+       clear mu* sd* tmp*
    end
-   
+
 end
+
+

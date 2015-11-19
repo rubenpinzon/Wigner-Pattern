@@ -36,6 +36,6 @@ for ii = 1 : lw
     sum_g = sum_g + 2.0 * tmp;
 end
 
-win =  weights./sum_g;
+win =  weights./(length(weights));
 
 

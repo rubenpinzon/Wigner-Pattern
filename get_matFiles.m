@@ -3,12 +3,18 @@ function [files, names, roots] = get_matFiles(varargin)
 
 basepath = varargin{1};
 if nargin == 1
-   pattern = '/*BehavElectrData.mat';
-else
+   pattern  = '/*BehavElectrData.mat';
+   sufix    = 'i01*';
+elseif nargin ==2
+   sufix    = 'i01*'; 
    pattern = varargin{2}; 
+else
+   sufix    = varargin{3}; 
+   pattern  = varargin{2}; 
 end
-fprintf('Searching files with pattern %s\n', pattern)
-animals = dir([basepath 'i01*']);
+
+fprintf('Searching files with pattern %s\n', [basepath sufix pattern])
+animals = dir([basepath sufix]);
 files = {};
 names = {};
 roots = {};

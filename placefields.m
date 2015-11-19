@@ -16,7 +16,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 6;
+animal          = 4;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -82,14 +82,31 @@ for lap = 1:numLaps
         hold on       
     end
     
-    if debug && lap == 1
-       figure(10) 
+    %cell ordered in time according to the peak in firing rate
+    %For each recurring activity pattern, cell activation onset was defined by
+    %the maximum of the first derivative of the smoothed trace. Onsets
+    % Cells were then ordered in a sequence according to their median onset
+    %delay in each run epoch. Villette, V. et al. ernally recurring hippocampal
+    %sequences as a population template of spatiotemporal information.
+    %Neuron, 88(2), 357-366.
+
+    f               = diff(firing,1,2);
+    [peak, t_peak]  = max(f,[],2);
+    [t_peak_s,seq]  = sort(t_peak);
+    
+    if debug && lap < 5
+       figure(10+lap) 
        for n = 1 : n_pyrs
-          plot(firing(n,:)+n*ones(1,t_lap),'color',color(n,:)), hold on
+          plot(firing(seq(n),:)+n*ones(1,t_lap),'color',color(seq(n),:)), hold on
            
        end
-    end
+    end  
+    
+    
     %Type of trial
+    D(lap).onset              = f;
+    D(lap).f_rate_order       = seq;
+    D(lap).t_peak             = t_peak;
     D(lap).spikes             = spikes;
     D(lap).X                  = X_lap;
     D(lap).Y                  = Y_lap;
@@ -106,12 +123,15 @@ if debug
    figure(2), title('Position of animal per Lap in section Run')
 end
 
+
+
 %% temporal aligment for the place fields across laps
+
 close all
 psth_w              = 0.02 * Fs;
 lap_types           = [D.type];
-crit_pastalkova1    = 6 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
-crit_pastalkova2    = 5 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
+crit_pastalkova1    = 4 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
+crit_pastalkova2    = 3 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
 
 for con = 1 : 2%length(typetrial)
    figure(con) 
@@ -156,7 +176,7 @@ for con = 1 : 2%length(typetrial)
               pastalkova_1(n) = true; 
               tmp_color = 'r';
            end   
-           if max(tmp) >= crit_pastalkova2 && max(tmp) > 3*std(tmp(~isnan(tmp))) + mean(tmp(~isnan(tmp)))
+           if max(tmp) >= crit_pastalkova2 && max(tmp) > 2*std(tmp(~isnan(tmp))) + mean(tmp(~isnan(tmp)))
               pastalkova_2(n) = true;
               tmp_color = 'm'; 
               if strcmp(tmp_color, 'r')
@@ -166,9 +186,11 @@ for con = 1 : 2%length(typetrial)
 
            plot(mu_pfield(n,:), tmp_color, 'linewidth',2)
            xlim([0 max_lap])
+           ylim([0 10])
            line(xlim, crit_pastalkova1*[1 1],'color',[0.5 0.5 0.5])
-           %drawnow
+           
        end
+       drawnow
        C(con).condition = typetrial{con};
        C(con).mu_pfield = mu_pfield;
        C(con).pastalkova1 = pastalkova_1;
@@ -181,4 +203,21 @@ for con = 1 : 2%length(typetrial)
 
 end
 
+stable_cells = C(1).pastalkova1 | C(1).pastalkova2...
+    | C(2).pastalkova2 | C(2).pastalkova1;
+%% plot the firing rates in sequence according to the time of their peak
 
+
+for lap = 1:numLaps
+    firing = D(lap).firing_rate;
+    seq    = D(lap).f_rate_order; 
+    t_peak = D(lap).t_peak;
+    
+    figure(10+lap) 
+    for n = 1 : n_pyrs
+       if stable_cells(seq(n))
+            plot(firing(seq(n),:)+n,'color',color(25,:)), hold on  
+            plot(t_peak(seq(n)),n,'ok','markersize',6,'markerfacecolor','k')
+       end           
+    end   
+end

@@ -20,7 +20,8 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 5;
+animal          = 4;
+disp(['Processing folder: ' animals{animal}]);
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -52,7 +53,21 @@ sect            = [2 3]; %without middle arm
 sect_in         = [7, 8]; 
 sect_out        = [7, 8];
 cnt             = 1;
+n_pyr           = sum(isIntern==0);
 % Extract spks when the mouse is running and in the wheel to calculate
+
+%read the file with the stable place cells if exist
+try
+    stable_pfields = load([roots{animal} '_stable_pfields.txt']);
+    exclude_cells  = ones(1,n_cells);
+    exclude_cells(stable_pfields) = 0;
+    color          = jet(length(stable_pfields)); 
+
+catch
+    disp('no stable pfilds file found. Using all the cells except inter');
+    exclude_cells = isIntern;
+end
+
 try 
     clear S
 end
@@ -72,29 +87,33 @@ for lap = 1:n_laps
     %speed below threshold
     speed_lap(speed_lap<speed_th) = 1;
     speed_lap(speed_lap>=speed_th) = 0;
-    
+    norm_speed = max(speed(idx_stop(1):idx_stop(2)));
     if debug
         figure(lap)
         plot(speed_lap), hold on
-        plot(speed(idx_stop(1):idx_stop(2))./max(speed(idx_stop(1):idx_stop(2))),'r')
+        plot(speed(idx_stop(1):idx_stop(2))./norm_speed,'r')
+        title(sprintf('Periods of inmobility (<%d)',speed_th))
     end
     
-    if debug
-        figure(100)
-        plot(X_lap{lap}, Y_lap{lap}, 'color', color(lap,:),...
-            'displayname',sprintf('Lap %d',lap))
-        hold on       
-    end
+    
     %extract regions in which the animal is still
     dist        = diff(speed_lap);
-    moved       = -find(dist==1);
+    moved       = find(dist==1);
     stoped      = find(dist==-1);
-    period      = [stoped  moved(1:length(stoped))];
+    per_stop    = [moved(1:length(stoped)) stoped];
     %select those stoppig periods larger than 1s
-    winners     = find(sum(period,2) > 1.0*Fs);
+    winners     = find(per_stop(:,2)-per_stop(:,1) > 1.0*Fs);
+    if debug
+        for w = 1:length(winners)
+            idx = [per_stop(winners(w),1) per_stop(winners(w),2)] + idx_stop(1);
+            plot(per_stop(winners(w),1):per_stop(winners(w),2),...
+                speed(idx(1):idx(2))./norm_speed,'k','linewidth',2)
+        end
+    end
+    
     
     for w = 1:length(winners)
-        idx_stop    = [-period(winners(w),2) period(winners(w),1)] + idx_stop(1); 
+        idx_stop    = [per_stop(winners(w),1) per_stop(winners(w),2)] + idx_stop(1); 
         
         %spikes
         n_spks_stop  = zeros(1,n_cells);
@@ -102,8 +121,10 @@ for lap = 1:n_laps
         c_neu        = 0;
         all_spks     = []; 
         all_spks_id  = []; 
+        t_spks_stop  = {};
+        t_spks_run   = {};
         for neu=1:n_cells
-            if isIntern(neu) == 0
+            if exclude_cells(neu) == 0
                 c_neu  = c_neu + 1;
 
                 t_stop = spk_lap{lap,neu}>=idx_stop(1) & spk_lap{lap,neu}<=idx_stop(2);
@@ -113,6 +134,12 @@ for lap = 1:n_laps
                     t_spks_stop{c_neu} = spk_lap{lap,neu}(t_stop) - idx_stop(1) + 1;
                     all_spks(end+1:end + n_spks_stop(neu))    = t_spks_stop{c_neu};
                     all_spks_id(end+1:end + n_spks_stop(neu)) = c_neu;
+                    
+                    if debug
+                        for x = 1 : n_spks_stop(neu)
+                            line(t_spks_stop{c_neu}(x)*[1 1] + per_stop(winners(w),1),[c_neu c_neu+0.8]./n_pyr,'color',color(c_neu,:)) 
+                        end
+                    end
                 end
 
                 t_run = spk_lap{lap,neu}>=idx_run(1) & spk_lap{lap,neu}<=idx_run(end);
@@ -123,21 +150,25 @@ for lap = 1:n_laps
                 end
             end
         end
-        S(cnt).t_spks_stop = t_spks_stop;
-        S(cnt).t_spks_run  = t_spks_run;
-        S(cnt).n_spks_stop = n_spks_stop(isIntern==0);
-        S(cnt).n_spks_run  = n_spks_run(isIntern==0);
-        S(cnt).TrialId     = lap;
-        S(cnt).TrialType   = typetrial{data.Laps.TrialType(laps(lap))};
-        S(cnt).TrialTypeNo = data.Laps.TrialType(laps(lap));
-        S(cnt).Interval    = idx_stop;
-        S(cnt).Dur_stop    = sum(period(winners(w),:));
-        S(cnt).Dur_run     = idx_run(end) - idx_run(1);
-        S(cnt).Delay       = -period(w,2);
-        S(cnt).speed_stop  = speed(idx_stop(1):idx_stop(2));
-        S(cnt).speed_run   = speed(idx_run(1):idx_run(2));
-        S(cnt).all_spks_stop = [all_spks; all_spks_id];
-        cnt                = cnt + 1;
+        
+        if ~isempty(t_spks_stop)        
+            S(cnt).t_spks_stop = t_spks_stop;
+            S(cnt).t_spks_run  = t_spks_run;
+            S(cnt).n_spks_stop = n_spks_stop(isIntern==0);
+            S(cnt).n_spks_run  = n_spks_run(isIntern==0);
+            S(cnt).TrialId     = lap;
+            S(cnt).TrialType   = typetrial{data.Laps.TrialType(laps(lap))};
+            S(cnt).TrialTypeNo = data.Laps.TrialType(laps(lap));
+            S(cnt).Interval    = idx_stop;
+            S(cnt).Dur_stop    = sum(per_stop(winners(w),:));
+            S(cnt).Dur_run     = idx_run(end) - idx_run(1);
+            S(cnt).Delay       = -per_stop(w,2);
+            S(cnt).speed_stop  = speed(idx_stop(1):idx_stop(2));
+            S(cnt).speed_run   = speed(idx_run(1):idx_run(2));
+            S(cnt).all_spks_stop = [all_spks; all_spks_id];
+            S(cnt).inlap_pos   = [per_stop(winners(w),1) per_stop(winners(w),2)];
+            cnt                = cnt + 1;
+        end
         clear t_* n_sp* all*
     end    
 end    
@@ -178,21 +209,19 @@ print(figure(1),[roots{animal} 'Example_Run_stop_spks_lap.png'],'-dpng')
 %30% neurons active during hte replay to be considered a replay event 
 t_window = 0.05 * Fs;
 t_max    = 0.5 * Fs;
-n_mincell= 0.3 * sum(isIntern==0); %minimm number of cells active to be 
+n_mincell= ceil(0.3 * length(stable_pfields)); %minimm number of cells active to be 
                                    %replay preplay considered a event
-                                   %#TODO: this number is only counting place cells!!
 
 
 
 for seq = 1 : length(S)
-    figure(10+seq)
-    set(gcf,'position',[1988,447,1826,102],'color','w')
+    figure(S(seq).TrialId)
     %super spike
     [s_spk,idx]    = sort(S(seq).all_spks_stop(1,:));
     s_spk(2,:)     = S(seq).all_spks_stop(2,idx);
-    % show super vector       
+    %show super vector  
     for s = 1 : length(s_spk)
-       line(s_spk(1,s)*[1 1],[0 0.8],'color',color(s_spk(2,s),:),'linewidth',2)         
+       line(s_spk(1,s)*[1 1]+S(seq).inlap_pos(1),[0.6 0.8],'color',color(s_spk(2,s),:),'linewidth',2)         
     end
     % calculate distances between spikes in super vector and show those
     %larger than 50 ms;
@@ -202,10 +231,10 @@ for seq = 1 : length(S)
     if ~isempty(dist_proto)
         
         for p = 1 : length(dist_proto)
-            proto_int(:,p) = [s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)];
-            line([s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)],[0.5 0.5],'color','k','linewidth',2) 
-            line(s_spk(1,dist_proto(p))*[1 1],[0.43 0.57],'color','k','linewidth',2)
-            line(s_spk(1,dist_proto(p)+1)*[1 1],[0.43 0.57],'color','k','linewidth',2)
+            proto_int(:,p) = [s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)] + S(seq).inlap_pos(1);
+            line(proto_int(:,p),[0.7 0.7],'color','k','linewidth',2) 
+            line(proto_int(1,p)*[1 1],[0.5 0.9],'color','k','linewidth',2)
+            line(proto_int(2,p)*[1 1],[0.5 0.9],'color','k','linewidth',2)
         end
         %proto event has to be withing 500 ms. % odd values are disntace
         %within event
@@ -222,19 +251,21 @@ for seq = 1 : length(S)
             cell_proto{p} = unique(s_spk(2,idx_proto));   
 
             k = 'm';
+            size_l = [0.52 0.58];
             if length(cell_proto{p}) > n_mincell
                 k = 'r';
+                size_l = [0 1];
             end
-            line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.5 0.5],'color',k,'linewidth',2) 
-            line(en_pnt_silent(p_eve(p))*[1 1],[0.45 0.55],'color',k,'linewidth',2)
-            line(st_pnt_silent(p_eve(p)+1)*[1 1],[0.45 0.55],'color',k,'linewidth',2)
+            line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.55 0.55],'color',k,'linewidth',1) 
+            line(en_pnt_silent(p_eve(p))*[1 1],size_l,'color',k,'linewidth',2)
+            line(st_pnt_silent(p_eve(p)+1)*[1 1],size_l,'color',k,'linewidth',2)
         end
 
         %at least 30% of cells active in proto event to be consider event
         clear proto_int len_proto 
-        text(sum(xlim)/4,1,sprintf('Silent periods >=%2.1f ms',1000*t_window/Fs))
-        text(sum(xlim)/2,1,'Events (>30% cells active)','color','r')
-        text(3*sum(xlim)/4,1,'Proto Events (<30% cells active)','color','m')
+%         text(sum(xlim)/4,1,sprintf('Silent periods >=%2.1f ms',1000*t_window/Fs))
+%         text(sum(xlim)/2,1,'Events (>30% cells active)','color','r')
+%         text(3*sum(xlim)/4,1,'Proto Events (<30% cells active)','color','m')
         drawnow
     end
 end

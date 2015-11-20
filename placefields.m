@@ -205,6 +205,11 @@ end
 
 stable_cells = C(1).pastalkova1 | C(1).pastalkova2...
     | C(2).pastalkova2 | C(2).pastalkova1;
+stable_pcells = find(stable_cells==1)';
+%save to tx file the cells with stable pfields
+fileID = fopen([roots{animal} '_stable_pfields.txt'],'w');
+fprintf(fileID,'%d\n',stable_pcells);
+fclose(fileID);
 %% plot the firing rates in sequence according to the time of their peak
 
 

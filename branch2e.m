@@ -6,7 +6,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 2;
+animal          = 1;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -33,5 +33,6 @@ Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 
 D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
 
-E = get_pfields(D, 'mid_arm', 'mid_arm', 100, 'easy', true);
+E = get_pfields(D, 'lat_arm', 'lat_arm', 0, 'easy', true);
+%#TODO: modify the criteria to remove laps because it depends on the section of the maze
 

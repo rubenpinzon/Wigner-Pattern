@@ -48,7 +48,8 @@ for s = 1 : length(sufix)
     end
     eval(['sect_' sufix{s} '= int;'])
 end 
-
+disp('Section selected')
+disp([sect_in sect_out])
 
 % Extract spks when the mouse is running 
 for lap = 1:numLaps  

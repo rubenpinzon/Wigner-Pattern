@@ -16,7 +16,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 4;
+animal          = 1;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -35,7 +35,7 @@ numLaps         = numel(laps)-1;
 typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
 n_pyrs          = sum(isIntern==0);
-color           = jet(n_pyrs);
+color           = hsv(n_pyrs);
 conditions      = {'_left', '_right', ''};
 % =======================================================================%
 %==============   Extract Running Sections        ========================%
@@ -43,8 +43,10 @@ conditions      = {'_left', '_right', ''};
 debug           = true; %to show diganostic plots
 %this is to remove/add the section in the middle arm of the maze
 sect_in         = 1; 
-sect_out        = [5:6];
+sect_out        = [1];
 kernel          = gausswin(0.1*Fs);
+color_lap       = hsv(numLaps);
+t_lap_max       = 2 * Fs;
 
 % Extract spks when the mouse is running 
 for lap = 1:numLaps  
@@ -77,9 +79,12 @@ for lap = 1:numLaps
     end
     if debug
         figure(2)
-        plot(X_lap, Y_lap, 'color', color(lap,:),...
-            'displayname',sprintf('Lap %d',lap))
-        hold on       
+        if t_lap < t_lap_max
+            plot(X_lap, Y_lap, 'color', color_lap(lap,:),...
+                'displayname',sprintf('Lap %d',lap))
+            hold on   
+        end
+
     end
     
     %cell ordered in time according to the peak in firing rate
@@ -94,14 +99,14 @@ for lap = 1:numLaps
     [peak, t_peak]  = max(f,[],2);
     [t_peak_s,seq]  = sort(t_peak);
     
-    if debug && lap < 5
+    if ~debug 
        figure(10+lap) 
        for n = 1 : n_pyrs
-          plot(firing(seq(n),:)+n*ones(1,t_lap),'color',color(seq(n),:)), hold on
+          plot(firing(seq(n),:)+n*ones(1,t_lap),'color',color_lap(lap,:)), hold on
            
        end
     end  
-    
+       
     
     %Type of trial
     D(lap).onset              = f;
@@ -111,6 +116,11 @@ for lap = 1:numLaps
     D(lap).X                  = X_lap;
     D(lap).Y                  = Y_lap;
     D(lap).speed              = speed_lap;
+    D(lap).mu_speed           = mean(speed_lap);
+    D(lap).max_speed          = max(speed_lap);
+    D(lap).min_speed          = min(speed_lap);
+    D(lap).mu_acc             = mean(diff(speed_lap));
+    D(lap).max_acc            = max(diff(speed_lap));
     D(lap).times              = idx_lap;
     D(lap).type               = data.Laps.TrialType(laps(lap));
     D(lap).color              = color(data.Laps.TrialType(laps(lap)),:);
@@ -123,28 +133,56 @@ if debug
    figure(2), title('Position of animal per Lap in section Run')
 end
 
+mean_speed = mean([D.mu_speed]); % m/sample
+st_speed   = std([D.mu_speed]);
 
+crit1 = [D.mu_speed] < (mean_speed+st_speed);
+crit2 = [D.mu_speed] > (mean_speed-st_speed);
+crit3 = [D.min_speed] > 100;
+
+
+keep_laps = find( crit1 & crit2 & crit3 );
+fprintf('Cleaning exp by removing trials with speed out of trend\n')
+D         = D(keep_laps);
+numLaps   = length(D);
+if debug
+    
+    for lap = 1:numLaps
+        seq    = D(lap).f_rate_order;
+        t_lap  = D(lap).duration +1;
+        firing = D(lap).firing_rate;
+        figure(1)
+        plot(D(lap).X, D(lap).Y, 'color', color_lap(lap,:),...
+                'displayname',sprintf('Lap %d',lap))
+            hold on
+        
+        figure(10+lap) 
+        for n = 1 : n_pyrs
+          plot(firing(seq(n),:)+n*ones(1,t_lap),'color',color_lap(lap,:)), hold on           
+        end
+    end
+end
 
 %% temporal aligment for the place fields across laps
 
 close all
 psth_w              = 0.02 * Fs;
 lap_types           = [D.type];
-crit_pastalkova1    = 4 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
-crit_pastalkova2    = 3 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
+crit_pastalkova1    = @(x) max(x)>4 ; %from [Pastalkova 2008] Internally Generated Cell Assembly 
+crit_pastalkova2    = @(x) max(x)>3 && max(x) > 2*std(x)+mean(x); %from [Pastalkova 2008] Internally Generated Cell Assembly 
+overwrite           = false;
 
-for con = 1 : 2%length(typetrial)
-   figure(con) 
+for con = 1 : max(lap_types)
    lap_same      = find(lap_types == con);
    
-   if ~isempty(lap_same)
+   if length(lap_same) > 1
+       figure(con) 
+
        lap_durations = [D(lap_same).duration];
        mu_duration   = mean(lap_durations);
        sd_duration   = std(lap_durations);
 
-       %remove laps away from the mean duration
-       remove_lap = find(abs(lap_durations - mu_duration)>1.5*sd_duration);
-       lap_same(remove_lap) = [];
+       
        %longest lap
        max_lap          = max([D(lap_same).duration]);
        pastalkova_1     = false(1,n_pyrs);  
@@ -152,7 +190,7 @@ for con = 1 : 2%length(typetrial)
        mu_pfield        = zeros(n_pyrs, max_lap);
        
        for n = 1 : n_pyrs
-           subplot(10,9,n)
+           subplot(10,ceil(n_pyrs/10),n)
            %figure(n)
            tmp = zeros(1,max_lap);
            for j = 1 : numel(lap_same)
@@ -162,7 +200,7 @@ for con = 1 : 2%length(typetrial)
                    spike_train = interp1(spike_train,linspace(0,length(spike_train),max_lap));
                end
                tmp = tmp + spike_train;
-               plot(spike_train,'color',color(j,:)), hold on    
+               plot(spike_train,'color',color(j,:)), hold on   
 
            end
            %title(sprintf('n%d',n))
@@ -172,12 +210,12 @@ for con = 1 : 2%length(typetrial)
 
            tmp_color = 'k';
            %criteria for place fields
-           if  max(tmp) >= crit_pastalkova1
+           if  crit_pastalkova1(tmp(~isnan(tmp)))
               pastalkova_1(n) = true; 
-              tmp_color = 'r';
+              tmp_color = 'b';
            end   
-           if max(tmp) >= crit_pastalkova2 && max(tmp) > 2*std(tmp(~isnan(tmp))) + mean(tmp(~isnan(tmp)))
-              pastalkova_2(n) = true;
+           if crit_pastalkova2(tmp(~isnan(tmp)))
+              pastalkova_1(n) = true;
               tmp_color = 'm'; 
               if strcmp(tmp_color, 'r')
                 tmp_color = 'g'; 
@@ -187,7 +225,6 @@ for con = 1 : 2%length(typetrial)
            plot(mu_pfield(n,:), tmp_color, 'linewidth',2)
            xlim([0 max_lap])
            ylim([0 10])
-           line(xlim, crit_pastalkova1*[1 1],'color',[0.5 0.5 0.5])
            
        end
        drawnow
@@ -206,14 +243,70 @@ end
 stable_cells = C(1).pastalkova1 | C(1).pastalkova2...
     | C(2).pastalkova2 | C(2).pastalkova1;
 stable_pcells = find(stable_cells==1)';
+%%
+%Filter out the cells that are not stable from the probe sequence
+for lap = 1:numLaps  
+    t_peak                  = D(lap).t_peak;
+    t_peak(stable_cells==0) = -1;
+    [val, seq]              = sort(t_peak); 
+    probe_seq               = seq(val>0);
+    D(lap).prob_seq         = probe_seq;
+    clear *seq 
+end
+type        = [D.type];
+probe_seq   = [D.prob_seq];
+probe_seq_l = probe_seq(:,type==1);
+probe_seq_r = probe_seq(:,type==2);
+
+figure()
+set(gcf,'color','w')
+subplot(1,2,1)
+errorbar(mean(probe_seq_l,2), std(probe_seq_l,1,2),'linewidth',2), hold on
+for lp_l = 1 : size(probe_seq_l,1)
+    plot(lp_l,probe_seq_l(lp_l,:),'bx')
+end
+xlabel('Cell id in the sequence')
+ylabel('Cell Id')
+xlim([0, sum(stable_cells)])
+set(gca,'fontsize',14)
+subplot(1,2,2)
+errorbar(mean(probe_seq_r,2), std(probe_seq_r,1,2),'color','r','linewidth',2), hold on
+for lp_r = 1 : size(probe_seq_r,1)
+    plot(lp_r,probe_seq_r(lp_r,:),'rx')
+end
+xlabel('Cell id in the sequence')
+ylabel('Cell Id')
+xlim([0, sum(stable_cells)])
+set(gca,'fontsize',14)
+annotation('textbox',[0 0.9 1 0.1], 'String',animals{animal},...
+    'fontsize',14,'edgecolor','none',...
+    'HorizontalAlignment', 'center')
+
+%check time variability
+T_peak = [D.t_peak];
+T_peak = T_peak(stable_cells==1,:);
+T_peak_l = T_peak(:,type==1);
+T_peak_r = T_peak(:,type==2);
+
+mu_peak   = mean(T_peak_l,2);
+sd_peak   = std(T_peak_l,1,2);
+[val, idx]= sort(mu_peak);
+
+herrorbar(mu_peak(idx),1:sum(stable_cells),sd_peak(idx))
+
+
 %save to tx file the cells with stable pfields
-fileID = fopen([roots{animal} '_stable_pfields.txt'],'w');
-fprintf(fileID,'%d\n',stable_pcells);
-fclose(fileID);
+if ~exist([roots{animal} '_stable_pfields.mat'], 'file') || overwrite
+    save([roots{animal} '_stable_pfields.mat'],'D','C','stable_cells')
+end
+
+
 %% plot the firing rates in sequence according to the time of their peak
+% How stable are the orderings across the laps?%
+st_pcells = find(stable_cells==1);
 
 
-for lap = 1:numLaps
+for lap = 1:4%numLaps
     firing = D(lap).firing_rate;
     seq    = D(lap).f_rate_order; 
     t_peak = D(lap).t_peak;
@@ -226,3 +319,5 @@ for lap = 1:numLaps
        end           
     end   
 end
+
+

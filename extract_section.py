@@ -175,7 +175,6 @@ def compute_scores(X, n_components):
 def zscore(X):
     return (X - np.mean(X, axis=1)[:, np.newaxis]) / np.std(X, axis=1)[:, np.newaxis]
 
-
 def squareT(X):
     return np.sqrt(X)
 

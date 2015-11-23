@@ -58,10 +58,12 @@ n_pyr           = sum(isIntern==0);
 
 %read the file with the stable place cells if exist
 try
-    stable_pfields = load([roots{animal} '_stable_pfields.txt']);
-    exclude_cells  = ones(1,n_cells);
+    data_pfields    = load([roots{animal} '_stable_pfields.mat']);
+    stable_pfields  = find(data_pfields.stable_cells==1);
+    probe_seq       = [data_pfields.D.f_rate_order];
+    exclude_cells   = ones(1,n_cells);
     exclude_cells(stable_pfields) = 0;
-    color          = jet(length(stable_pfields)); 
+    color           = jet(length(stable_pfields)); 
 
 catch
     disp('no stable pfilds file found. Using all the cells except inter');
@@ -171,9 +173,12 @@ for lap = 1:n_laps
         end
         clear t_* n_sp* all*
     end    
-end    
-%%
-%shows move and stop sequences for control purposes. Saves png of first lap 
+end
+%% 
+%========================================================================%
+% Shows move and stop sequences for control purposes. Saves png of first lap
+%=========================================================================%
+
 t_ids      = [S.TrialId];
 unique_tr    = unique(t_ids);
 for seq = 3 : 3%length(unique_tr)

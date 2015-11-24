@@ -36,7 +36,7 @@ for lap = 1:numLaps
     end        
    
     %Type of trial
-    sections                  = events{1}-events{1}(1,1)+1;
+    sections                  = events{lap}-events{lap}(1,1)+1;
     sections(sections<0)      = 0;
     
     D(lap).trialId            = lap;

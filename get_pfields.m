@@ -48,8 +48,6 @@ for s = 1 : length(sufix)
     end
     eval(['sect_' sufix{s} '= int;'])
 end 
-disp('Section selected')
-disp([sect_in sect_out])
 
 % Extract spks when the mouse is running 
 for lap = 1:numLaps  
@@ -68,9 +66,13 @@ for lap = 1:numLaps
     
     if debug
         figure(1)
-            plot(X_lap, Y_lap, 'color', color(lap,:),...
-                'displayname',sprintf('Lap %d',D(lap).trialId))
-            hold on   
+        subplot(121)
+        hold on
+        plot(X_lap, Y_lap, 'color', color(lap,:),...
+            'displayname',sprintf('Lap %d',D(lap).trialId))
+        subplot(122)
+        plot(speed_lap, 'color', color(lap,:),'displayname',sprintf('Lap %d',D(lap).trialId))
+        hold on   
 
     end
         
@@ -109,6 +111,7 @@ for lap = 1:numLaps
     
 end    
 
+%#TODO Used the percentile 95 of the lenght and speed to filter laps
 mean_speed = mean([S.mu_speed]); % m/sample
 st_speed   = std([S.mu_speed]);
 

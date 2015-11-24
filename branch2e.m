@@ -33,6 +33,10 @@ Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 
 D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
 
-E = get_pfields(D, 'lat_arm', 'lat_arm', 0, 'easy', true);
+debug       = true;
+in          = 'mid_arm';
+out         = 'lat_arm';
+min_speed   = 0;
+E = get_pfields(D, st_sect,en_sect, min_speed, 'easy', debug);
 %#TODO: modify the criteria to remove laps because it depends on the section of the maze
 

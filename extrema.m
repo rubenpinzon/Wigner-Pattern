@@ -38,7 +38,6 @@
 %
 % Concerned function: no
 %                     (all matlab internal function)
-
 function [spmax, spmin, flag]= extrema(in_data)
 
 flag=1;

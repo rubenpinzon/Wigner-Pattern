@@ -20,7 +20,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 4;
+animal          = 6;
 disp(['Processing folder: ' animals{animal}]);
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
@@ -41,13 +41,15 @@ typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 n_cells         = size(spk_lap,2);
 color           = jet(sum(isIntern==0));
 removeInh       = true;
+show_run_stop   = false; %diagnostic plot to show running and stoping spikes
+
 %%
 % ========================================================================%
 %==============   Extract Stopping section after run =====================%
 %=========================================================================%
 
 debug           = true; %to show diganostic plots
-speed_th        = 200;
+speed_th        = 100;
 %this is to remove/add the section in the middle arm of the maze
 sect            = [2 3]; %without middle arm 
 sect_in         = [7, 8]; 
@@ -77,10 +79,10 @@ for lap = 1:n_laps
     %(a) Runing in the wheel. Detected based on the speed of the wheel that
     %is a better indicator than the EnterSection time stamp
     idx_run                 = [sum(events{lap}(sect,1)), sum(events{lap}(5:6,2))];
-    if idx_run(1)>idx_run(2)
-        fprintf('WARNING: Lap %d animal got crazy, skipping\n',lap)
-        continue
-    end
+%     if idx_run(1)>idx_run(2)
+%         fprintf('WARNING: Lap %d animal got crazy, skipping\n',lap)
+%         continue
+%     end
     idx_stop                = [sum(events{lap}(sect_in,1)), sum(events{lap}(sect_out,2))];
     X_lap{lap}              = X(idx_stop(1):idx_stop(2));
     Y_lap{lap}              = Y(idx_stop(1):idx_stop(2));
@@ -89,12 +91,13 @@ for lap = 1:n_laps
     %speed below threshold
     speed_lap(speed_lap<speed_th) = 1;
     speed_lap(speed_lap>=speed_th) = 0;
+    speed_lap(end) = 0;
     norm_speed = max(speed(idx_stop(1):idx_stop(2)));
     if debug
         figure(lap)
         plot(speed_lap), hold on
         plot(speed(idx_stop(1):idx_stop(2))./norm_speed,'r')
-        title(sprintf('Periods of inmobility (<%d)',speed_th))
+        title(sprintf('Periods of inmobility (<%d), lap %d',speed_th, lap))
     end
     
     
@@ -132,7 +135,7 @@ for lap = 1:n_laps
                 t_stop = spk_lap{lap,neu}>=idx_stop(1) & spk_lap{lap,neu}<=idx_stop(2);
                 %aligned to the start of the section
                 n_spks_stop(neu) = sum(t_stop);
-                if n_spks_stop(neu) ~= 0
+                %if n_spks_stop(neu) ~= 0
                     t_spks_stop{c_neu} = spk_lap{lap,neu}(t_stop) - idx_stop(1) + 1;
                     all_spks(end+1:end + n_spks_stop(neu))    = t_spks_stop{c_neu};
                     all_spks_id(end+1:end + n_spks_stop(neu)) = c_neu;
@@ -142,20 +145,20 @@ for lap = 1:n_laps
                             line(t_spks_stop{c_neu}(x)*[1 1] + per_stop(winners(w),1),[c_neu c_neu+0.8]./n_pyr,'color',color(c_neu,:)) 
                         end
                     end
-                end
+                %end
 
                 t_run = spk_lap{lap,neu}>=idx_run(1) & spk_lap{lap,neu}<=idx_run(end);
                 n_spks_run(neu) = sum(t_run);
-                if n_spks_stop(neu) ~= 0
+                %if n_spks_stop(neu) ~= 0
                     %aligned to the start of the section
                     t_spks_run{c_neu} = spk_lap{lap,neu}(t_run) - idx_run(1) + 1;
-                end
+                %end
             end
         end
         
         if ~isempty(t_spks_stop)        
-            S(cnt).t_spks_stop = t_spks_stop;
-            S(cnt).t_spks_run  = t_spks_run;
+            S(cnt).spks_stop   = t_spks_stop;
+            S(cnt).spks_run    = t_spks_run;
             S(cnt).n_spks_stop = n_spks_stop(isIntern==0);
             S(cnt).n_spks_run  = n_spks_run(isIntern==0);
             S(cnt).TrialId     = lap;
@@ -173,37 +176,41 @@ for lap = 1:n_laps
         end
         clear t_* n_sp* all*
     end    
+    drawnow
 end
+
+fprintf('Number of stoping events (speed<%d) = %d\n',speed_th,length(S))
+fprintf('Next: searching for protoevents\n')
 %% 
 %========================================================================%
 % Shows move and stop sequences for control purposes. Saves png of first lap
 %=========================================================================%
+if show_run_stop
+    t_ids      = [S.TrialId];
+    unique_tr    = unique(t_ids);
+    for seq = 3 : 3%length(unique_tr)
+       seq_r    = unique_tr(seq); 
+       n_events = sum(t_ids == unique_tr(seq));
+       figure(seq)
+       set(gcf, 'position', [2000 500 1000 500], 'color', 'w'), hold on
 
-t_ids      = [S.TrialId];
-unique_tr    = unique(t_ids);
-for seq = 3 : 3%length(unique_tr)
-   seq_r    = unique_tr(seq); 
-   n_events = sum(t_ids == unique_tr(seq));
-   figure(seq)
-   set(gcf, 'position', [2000 500 1000 500], 'color', 'w'), hold on
-   
-   %theta
-   subplot(1,2 + n_events,[1 2]), hold on
-   ele   = find(t_ids==seq_r,1);
-   raster(S(ele).t_spks_run)
-   plot(S(ele).speed_run./10,'r')
-   xlabel(sprintf('Running period lap %d::%s',seq_r,S(ele).TrialType))
-   %events
-   for n = 1 : n_events
-      subplot(1,2 + n_events,2+n), hold on
-      raster(S(ele+n-1).t_spks_stop)
-      plot(S(ele+n-1).speed_stop./10,'r')
-      xlabel('Stopping period')
-   end
-   drawnow 
+       %theta
+       subplot(1,2 + n_events,[1 2]), hold on
+       ele   = find(t_ids==seq_r,1);
+       raster(S(ele).spks_run)
+       plot(S(ele).speed_run./10,'r')
+       xlabel(sprintf('Running period lap %d::%s',seq_r,S(ele).TrialType))
+       %events
+       for n = 1 : n_events
+          subplot(1,2 + n_events,2+n), hold on
+          raster(S(ele+n-1).spks_stop)
+          plot(S(ele+n-1).speed_stop./10,'r')
+          xlabel('Stopping period')
+       end
+       drawnow 
+    end
+    print(figure(1),[roots{animal} 'Example_Run_stop_spks_lap.png'],'-dpng')
 end
-print(figure(1),[roots{animal} 'Example_Run_stop_spks_lap.png'],'-dpng')
-
 %%
 %=========================================================================%
 %==============   Extract super vector of spikes     =====================%
@@ -214,16 +221,16 @@ print(figure(1),[roots{animal} 'Example_Run_stop_spks_lap.png'],'-dpng')
 %30% neurons active during hte replay to be considered a replay event 
 t_window = 0.05 * Fs;
 t_max    = 0.5 * Fs;
-n_mincell= ceil(0.3 * length(stable_pfields)); %minimm number of cells active to be 
+n_mincell= 10; %minimm number of cells active to be 
                                    %replay preplay considered a event
-
-
-
+cnt      = 1;
 for seq = 1 : length(S)
     figure(S(seq).TrialId)
     %super spike
     [s_spk,idx]    = sort(S(seq).all_spks_stop(1,:));
     s_spk(2,:)     = S(seq).all_spks_stop(2,idx);
+    
+    spk_seq        = S(seq).spks_stop;
     %show super vector  
     for s = 1 : length(s_spk)
        line(s_spk(1,s)*[1 1]+S(seq).inlap_pos(1),[0.6 0.8],'color',color(s_spk(2,s),:),'linewidth',2)         
@@ -257,9 +264,22 @@ for seq = 1 : length(S)
 
             k = 'm';
             size_l = [0.52 0.58];
+            %Here are the proto events that fullfill the criteria
             if length(cell_proto{p}) > n_mincell
                 k = 'r';
-                size_l = [0 1];
+                size_l   = [0 1];
+                P(cnt).duration = proto(p,2)-proto(p,1);
+                P(cnt).interval = proto(p,:);
+                P(cnt).trialId  = S(seq).TrialId;
+                P(cnt).trialType = S(seq).TrialTypeNo;
+                
+                spk_pro = zeros(n_pyr,P(cnt).duration + 1);
+                for c = 1 : n_pyr
+                    s_idx = find(spk_seq{c}>=proto(p,1) & spk_seq{c}<=proto(p,2));
+                    spk_pro(c,s_idx) = 1;
+                end
+                P(cnt).y        = spk_pro;
+                cnt             = cnt + 1;
             end
             line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.55 0.55],'color',k,'linewidth',1) 
             line(en_pnt_silent(p_eve(p))*[1 1],size_l,'color',k,'linewidth',2)

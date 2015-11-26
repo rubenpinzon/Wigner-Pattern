@@ -6,7 +6,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 1;
+animal          = 6;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -33,10 +33,25 @@ Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 
 D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
 
+% ========================================================================%
+%==============       Find stable pcells          ========================%
+%=========================================================================%
+
 debug       = true;
-in          = 'mid_arm';
+in          = 'turn';
 out         = 'lat_arm';
 min_speed   = 0;
-E = get_pfields(D, st_sect,en_sect, min_speed, 'easy', debug);
+show_firing = false;
+[E, S] = get_pfields(D, in,out, min_speed, 'easy', debug, show_firing);
 %#TODO: modify the criteria to remove laps because it depends on the section of the maze
+
+%Get consolitated indixes of stable place cells
+stable_E = [];
+for e = 1 : length(E)
+    stable_E = [stable_E E{e}];    
+end
+stable_pcells = unique(stable_E); %these are the cells with stable pfield
+name          = 'stable-pfields.mat';
+save([roots{animal} name],'stable_pcells')
+
 

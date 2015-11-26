@@ -1,4 +1,4 @@
-function stable = get_pfields(D, in, out, min_speed, method, debug)
+function [stable, S] = get_pfields(D, in, out, min_speed, method, debug, show_firing)
 %GET_PFIELDS This function process a data array of spike times to indetify
 %the cells with stable place fields. The criteria used to define a stable
 %place field follows the definitions at
@@ -128,7 +128,7 @@ numLaps   = length(S);
 n_pyrs    = size(S(1).firing_rate,1);
 
 %plot ordered firing rates
-if debug    
+if show_firing    
     for lap = 1:numLaps
         seq    = S(lap).f_rate_order;
         t_lap  = S(lap).duration +1;
@@ -152,7 +152,8 @@ end
 %easy way is to compute the median of the ofset of the activity, and then
 %remove the cells that are not concentrated, that is, large s.d. Second
 %methods is by following pastakolova.
-type        = [S.type];
+type          = [S.type];
+max_var_onset = 350;
 
 if strcmp(method,'easy')      
 
@@ -161,23 +162,23 @@ if strcmp(method,'easy')
     for t = 1 : max(type)  
        
         T_peak    = probe_seq(:,type==t);
-        if ~isempty(T_peak)
+        if length(T_peak)>3
             figure(100+t)
             mu_peak   = mean(T_peak,2);
             sd_peak   = std(T_peak,1,2);
             [val, idx]  = sort(mu_peak);
             ori_idx = idx;
-            remove_cell = val<10 | sd_peak(idx) > 300;
+            remove_cell = val<10 | sd_peak(idx) > max_var_onset;
             idx(remove_cell) = [];
             herrorbar(mu_peak(idx),1:numel(idx),sd_peak(idx));            
-            title(sprintf('Laps type %d (cells = %d)',t, sum(type==t)))
+            title(sprintf('Laps type %d (num trials = %d)',t, sum(type==t)))
             xlabel('Onset time')
-            ylabel('Cell ordered')
+            ylabel('Cell ordered (filtered)')
             set(gca,'FontSize',14)
             
             figure(110+t)
             herrorbar(mu_peak(ori_idx),1:numel(ori_idx),sd_peak(ori_idx));            
-            title(sprintf('Laps type %d (cells = %d)',t, sum(type==t)))
+            title(sprintf('Laps type %d (num trials = %d)',t, sum(type==t)))
             xlabel('Onset time')
             ylabel('Cell ordered')
             set(gca,'FontSize',14)
@@ -190,7 +191,7 @@ end
 
 
 %plot ordered firing rates
-if debug    
+if show_firing    
     for lap = 1:numLaps
         seq      = stable{S(lap).type};
         t_lap    = S(lap).duration +1;

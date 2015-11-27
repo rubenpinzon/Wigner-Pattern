@@ -42,13 +42,14 @@ n_cells         = size(spk_lap,2);
 color           = jet(sum(isIntern==0));
 removeInh       = true;
 show_run_stop   = false; %diagnostic plot to show running and stoping spikes
+TrialType       = data.Laps.TrialType;
 
 %%
 % ========================================================================%
 %==============   Extract Stopping section after run =====================%
 %=========================================================================%
 
-debug           = true; %to show diganostic plots
+debug           = false; %to show diganostic plots
 speed_th        = 100;
 %this is to remove/add the section in the middle arm of the maze
 sect            = [2 3]; %without middle arm 
@@ -218,22 +219,25 @@ end
 
 %50 ms window to detect disconnected sequences accoding to Foster & Wilson
 %60 ms window according to Diba Buszaki 2007
-%30% neurons active during hte replay to be considered a replay event 
+%at least 10 neurons active 
+
 t_window = 0.05 * Fs;
 t_max    = 0.5 * Fs;
 n_mincell= 10; %minimm number of cells active to be 
                                    %replay preplay considered a event
 cnt      = 1;
 for seq = 1 : length(S)
-    figure(S(seq).TrialId)
     %super spike
     [s_spk,idx]    = sort(S(seq).all_spks_stop(1,:));
     s_spk(2,:)     = S(seq).all_spks_stop(2,idx);
     
     spk_seq        = S(seq).spks_stop;
     %show super vector  
-    for s = 1 : length(s_spk)
-       line(s_spk(1,s)*[1 1]+S(seq).inlap_pos(1),[0.6 0.8],'color',color(s_spk(2,s),:),'linewidth',2)         
+    if debug
+        figure(S(seq).TrialId)
+        for s = 1 : length(s_spk)
+           line(s_spk(1,s)*[1 1]+S(seq).inlap_pos(1),[0.6 0.8],'color',color(s_spk(2,s),:),'linewidth',2)         
+        end
     end
     % calculate distances between spikes in super vector and show those
     %larger than 50 ms;
@@ -244,9 +248,11 @@ for seq = 1 : length(S)
         
         for p = 1 : length(dist_proto)
             proto_int(:,p) = [s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)] + S(seq).inlap_pos(1);
-            line(proto_int(:,p),[0.7 0.7],'color','k','linewidth',2) 
-            line(proto_int(1,p)*[1 1],[0.5 0.9],'color','k','linewidth',2)
-            line(proto_int(2,p)*[1 1],[0.5 0.9],'color','k','linewidth',2)
+            if debug
+                line(proto_int(:,p),[0.7 0.7],'color','k','linewidth',2) 
+                line(proto_int(1,p)*[1 1],[0.5 0.9],'color','k','linewidth',2)
+                line(proto_int(2,p)*[1 1],[0.5 0.9],'color','k','linewidth',2)
+            end
         end
         %proto event has to be withing 500 ms. % odd values are disntace
         %within event
@@ -278,12 +284,15 @@ for seq = 1 : length(S)
                     s_idx = find(spk_seq{c}>=proto(p,1) & spk_seq{c}<=proto(p,2));
                     spk_pro(c,s_idx) = 1;
                 end
-                P(cnt).y        = spk_pro;
+                P(cnt).data     = spk_pro;
+                P(cnt).spk_cnt  = sum(P(cnt).data,2);
                 cnt             = cnt + 1;
             end
-            line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.55 0.55],'color',k,'linewidth',1) 
-            line(en_pnt_silent(p_eve(p))*[1 1],size_l,'color',k,'linewidth',2)
-            line(st_pnt_silent(p_eve(p)+1)*[1 1],size_l,'color',k,'linewidth',2)
+            if debug
+                line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.55 0.55],'color',k,'linewidth',1) 
+                line(en_pnt_silent(p_eve(p))*[1 1],size_l,'color',k,'linewidth',2)
+                line(st_pnt_silent(p_eve(p)+1)*[1 1],size_l,'color',k,'linewidth',2)
+            end
         end
 
         %at least 30% of cells active in proto event to be consider event
@@ -294,5 +303,36 @@ for seq = 1 : length(S)
         drawnow
     end
 end
+
+%%
+%=========================================================================%
+%============ Load GPFA models from the running laps =====================%
+%============ Compute loglike P(proto_event|model)   =====================%
+%=========================================================================%
+
+load([roots{animal} '_branch2_results40ms.mat'])
+mod_tags    = {'_left', '_right', ''};
+
+name_field  = 'data';
+P_seg       = segment(P, 0.004, Fs, keep_cell, name_field); 
+
+posterior   = zeros(length(mod_tags), length(P));
+
+for m = 1 : length(mod_tags)
+    %select the model parameters from the fold#1 
+    model = eval(['result_D' mod_tags{m} '.params{1};']);
+    
+    for p = 1 : length(P) 
+        fprintf('Model %s proto event %d\n',mod_tags{m},p);
+        [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);        
+        posterior(m,p) = ll;
+    end   
+    
+end
+
+%max log like P(event|model)
+[val, max_mod]  = max(posterior);
+c               = [max_mod' [P.trialType]']; %{P(proto|model) , realtag}
+common          = sum((c(:,1) - c(:,2))==0);
 
 

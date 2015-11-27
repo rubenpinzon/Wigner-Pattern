@@ -21,6 +21,7 @@ for lap = 1:numLaps
     t_lap        = idx_lap(2) - idx_lap(1) + 1;
     cnt          = 0;
     firing       = zeros(n_pyrs, t_lap); 
+    spk_train    = zeros(n_pyrs, t_lap);
     for neu=1:n_cells
         if ~isIntern(neu)
             tmp              = zeros(1, t_lap); 
@@ -32,6 +33,7 @@ for lap = 1:numLaps
             tmp(spikes_lap{cnt}) = 1; 
             %convolve the spike trains with a gauss filter 100 ms
             firing(cnt,:)    = Fs*conv(tmp,kernel, 'same');
+            spk_train(cnt, :) = tmp; 
         end
     end        
    
@@ -49,6 +51,7 @@ for lap = 1:numLaps
     D(lap).color              = color(TrialType(laps(lap)),:);
     D(lap).acc_dist           = acc_dst;
     D(lap).firing_rate        = firing;
+    D(lap).spike_train        = spk_train;
     D(lap).duration           = idx_lap(2) - idx_lap(1);
     D(lap).t_experiment       = events{1}(1,1);
     clear spikes *_lap tmp

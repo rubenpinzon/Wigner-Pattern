@@ -49,7 +49,7 @@ TrialType       = data.Laps.TrialType;
 %==============   Extract Stopping section after run =====================%
 %=========================================================================%
 
-debug           = false; %to show diganostic plots
+debug           = true; %to show diganostic plots
 speed_th        = 100;
 %this is to remove/add the section in the middle arm of the maze
 sect            = [2 3]; %without middle arm 
@@ -332,7 +332,7 @@ end
 
 %max log like P(event|model)
 [val, max_mod]  = max(posterior);
-c               = [max_mod' [P.trialType]']; %{P(proto|model) , realtag}
-common          = sum((c(:,1) - c(:,2))==0);
+c               = [1:length(P); max_mod; [P.trialType]]; %{P(proto|model) , realtag}
+common          = sum((c(2,:) - c(3,:))==0);
 
 

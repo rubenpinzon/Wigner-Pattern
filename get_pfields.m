@@ -63,7 +63,7 @@ for lap = 1:numLaps
     t_lap        = idx_lap(2) - idx_lap(1) + 1;
     cnt          = 0;
     firing       = D(lap).firing_rate(:,idx_lap(1):idx_lap(2)); 
-    
+    spikes       = D(lap).spike_train(:,idx_lap(1):idx_lap(2));
     if debug
         figure(1)
         subplot(121)
@@ -108,6 +108,7 @@ for lap = 1:numLaps
     S(lap).duration           = idx_lap(2) - idx_lap(1);
     S(lap).type               = D(lap).type;
     S(lap).trialId            = D(lap).trialId;
+    S(lap).spike_train        = spikes;
     
 end    
 
@@ -151,13 +152,16 @@ end
 
 %easy way is to compute the median of the ofset of the activity, and then
 %remove the cells that are not concentrated, that is, large s.d. Second
-%methods is by following pastakolova.
+%methods is by following Lee and Wilson: pyramidal cells firing > spike/lap
+%(mean), having a single place field(thus unique place field), and
+%that continued firing during the RUN session in more that 2/3 of the trials
+%(consistency).
 type          = [S.type];
 max_var_onset = 350;
 
 if strcmp(method,'easy')      
 
-    %check time variability
+    %check time variability based on Villette, V. et al. Neuron, 88(2) 2015
     probe_seq = [S.t_peak];
     for t = 1 : max(type)  
        
@@ -186,7 +190,51 @@ if strcmp(method,'easy')
         
         stable{t} = idx';
     end     
-    
+elseif strcmp(method,'lee')
+    % place fields according to Lee and Wilson, Neuron(36), 2002 
+    trials = [S.type];
+
+    for t = 1 : max(type) 
+        trials_t = find(trials==t);
+        n_trials = numel(trials_t);        
+        
+        %criterion A: mean firing of 1 spike/lap
+        min_fire  = n_trials; % 
+        spike_cnt = sum([S.spike_train],2);
+        critA     = find(spike_cnt >= min_fire);
+        
+        %criterion B: single peak
+        max_duration = max([S.duration]);
+
+        
+        for cm = 1 : numel(critA)
+            c = critA(cm);
+            tmp = zeros(n_trials,max_duration);
+            for k = 1 : n_trials
+                lap = trials_t(k);
+                firing_c     = S(lap).firing_rate;
+                if S(lap).duration ~= max_duration
+                    f_cell = interp1(firing_c(c,:),linspace(0,S(lap).duration,max_duration));
+                else
+                    f_cell = firing_c(c,1:max_duration);
+                end
+                tmp(k,:) = f_cell;
+                %plot(f_cell), hold on
+
+            end
+            
+                             
+            [dip,xl,xu, ifault] = HartigansDipTest(mean(tmp(:,50:end)));
+            
+
+            figure(c)
+            plot(mean(tmp(:,50:end)),'k','linewidth',2), hold on
+            title (sprintf('Dip stats cell %d = %f',c,dip))
+
+            drawnow
+        end
+        
+    end
 end
 
 

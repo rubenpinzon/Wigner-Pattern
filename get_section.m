@@ -60,5 +60,7 @@ for lap = 1:numLaps
     eval(['D(lap).' name '_firing=firing;'])
     eval(['D(lap).' name '_spike_train=spk_train;'])
     eval(['D(lap).' name '_interval=idx_lap;'])
+    eval(['D(lap).' name '_speed=speed_lap;'])
+
     
 end    

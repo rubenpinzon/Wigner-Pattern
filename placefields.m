@@ -42,8 +42,8 @@ conditions      = {'_left', '_right', ''};
 %=========================================================================%
 debug           = true; %to show diganostic plots
 %this is to remove/add the section in the middle arm of the maze
-sect_in         = 1; 
-sect_out        = [1];
+sect_in         = 5:6; 
+sect_out        = 5:6;
 kernel          = gausswin(0.1*Fs);
 color_lap       = hsv(numLaps);
 t_lap_max       = 2 * Fs;
@@ -138,11 +138,11 @@ st_speed   = std([D.mu_speed]);
 
 crit1 = [D.mu_speed] < (mean_speed+st_speed);
 crit2 = [D.mu_speed] > (mean_speed-st_speed);
-crit3 = [D.min_speed] > 100;
+crit3 = [D.min_speed] > 0;
 
 
 keep_laps = find( crit1 & crit2 & crit3 );
-fprintf('Cleaning exp by removing trials with speed out of trend\n')
+fprintf('Cleaning exp by removing %d out of %d trials with speed out of trend\n',length(D)-length(keep_laps),length(D))
 D         = D(keep_laps);
 numLaps   = length(D);
 if debug
@@ -215,7 +215,7 @@ for con = 1 : max(lap_types)
               tmp_color = 'b';
            end   
            if crit_pastalkova2(tmp(~isnan(tmp)))
-              pastalkova_1(n) = true;
+              pastalkova_2(n) = true;
               tmp_color = 'm'; 
               if strcmp(tmp_color, 'r')
                 tmp_color = 'g'; 
@@ -240,8 +240,8 @@ for con = 1 : max(lap_types)
 
 end
 
-stable_cells = C(1).pastalkova1 | C(1).pastalkova2...
-    | C(2).pastalkova2 | C(2).pastalkova1;
+stable_cells = C(1).pastalkova2...
+    | C(2).pastalkova2 ;
 stable_pcells = find(stable_cells==1)';
 %%
 %Filter out the cells that are not stable from the probe sequence

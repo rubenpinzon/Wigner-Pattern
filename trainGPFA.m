@@ -1,6 +1,6 @@
 function M = trainGPFA(D, zDim, showpred)
 %TRAINGPFA trains an cross validates a gpfa model with the data in D, using 3 folds
-%
+%           fields required in D: y: spike trains
 %ruben pinzon 2015
 
 folds           = 3;
@@ -63,8 +63,6 @@ M.like_test   = like;
 M.like_train  = like_tr;
 M.cv_trials   = cv_trials;
 M.foldidx     = fold_indx;
-
-eval(sprintf('result_D%s = result',conditions{s}))
 
 clear result params* mse like
 

@@ -42,8 +42,7 @@ in          = 'turn';
 out         = 'lat_arm';
 min_speed   = 0;
 show_firing = false;
-[E, S] = get_pfields(D, in,out, min_speed, 'easy', debug, show_firing);
-%#TODO: modify the criteria to remove laps because it depends on the section of the maze
+[E, Ev]      = get_pfields(D, in,out, min_speed, 'easy', debug, show_firing);
 
 %Get consolitated indixes of stable place cells
 stable_E = [];
@@ -62,6 +61,7 @@ Stop       = get_section(D, in_reward, out_reward, debug, 'reward');
 speed_th   = 150;
 color      = jet(n_sta);
 cnt        = 1;
+
 for lap = 1:length(Stop) 
     spd_lap   = Stop(lap).reward_speed;
     speed_lap = Stop(lap).reward_speed;
@@ -115,13 +115,20 @@ for lap = 1:length(Stop)
                     line(t_spks_stop{n}(x)*[1 1] + per_stop(winners(w),1),gain*[n n+0.8],'color',color(n,:)) 
                 end
             end            
+        end        
+        if ~isempty(t_spks_stop)        
+            Ev(cnt).spks_stop   = t_spks_stop;
+            Ev(cnt).spks_run    = t_spks_run;
+            Ev(cnt).n_spks_stop = n_spks_stop;
+            Ev(cnt).n_spks_run  = n_spks_run;
+            Ev(cnt).TrialId     = lap;
+            Ev(cnt).TrialType   = Stop(lap).type;
+            Ev(cnt).all_spks_stop = [all_spks; all_spks_id];
+            Ev(cnt).inlap_pos   = [per_stop(winners(w),1) per_stop(winners(w),2)];
+            cnt                = cnt + 1;
         end
-        
-        
-        clear t_* n_sp* all*
-        
-    end
-    
+        clear t_* n_sp* all*        
+    end   
       
     drawnow
 end

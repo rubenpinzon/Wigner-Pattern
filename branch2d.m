@@ -362,13 +362,15 @@ for p = 1 : length(P)
     end       
         
     [~, max_mod]  = max(posterior(:,p));
-    loglike_p(p) = posterior(max_mod, p);
+    loglike_p(p)  = posterior(max_mod, p);
+    
+    %get joint neural space
+    model = result_D.params{1};
+    [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);
 
-    
-    
     figure(2)
 %     max_mod = P(p).trialType;
-    Xorth = orthogonalize([proto_traj{max_mod,p}.xsm], model.C);
+    Xorth = orthogonalize([traj.xsm], model.C);
 %     Xorth = normr(Xorth);
     
     plot3(Xorth(1,:),Xorth(2,:),Xorth(3,:),'color',colors(max_mod,:)), hold on
@@ -412,5 +414,53 @@ for i = 1 : length(D)
 end
 
 
-%% show trajectories
+%% Cealculate the LogLike(P(run|model)) for test trails to get the baseline
+%%of the classifier
+
+load([roots{animal} '_branch2_results40ms.mat'])
+
+mod_tags    = {'_left', '_right'};
+posterior   = [];
+n_folds     = 3;
+mask        = false(1,length(D)); % for cross validation
+
+
+for ifold = 1 : n_folds    
+    test_mask       = mask;
+    test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+    test_data       = D(test_mask);
+    loglike_folds   = zeros(length(mod_tags), length(test_data));
+    type            = ones(1, length(test_data));
+    
+    for mod = 1 : length(mod_tags)
+        model_data = eval(['result_D' mod_tags{mod}]);
+        cv_trials       = model_data.cv_trials;
+        fold_indx       = model_data.foldidx;
+    
+        for ilap = 1 : length(test_data) %for each trial independently
+            [~, loglike] = exactInferenceWithLL(test_data(ilap), model_data.params{ifold},'getLL',1);
+            loglike_folds(mod, ilap) = loglike;
+             
+
+            if strcmp(test_data(ilap).condition, 'right') && mod == 1
+                type(ilap)  = 2;
+            end
+        end        
+        
+    end
+    
+    %Classification rates
+    [~, best_mod] = max(loglike_folds);
+    TP            = sum(best_mod == 1 & type == 1)/(sum(type == 1));
+    FN            = sum(best_mod == 2 & type == 2)/(sum(type == 2));
+    FP            = sum(best_mod == 1 & type == 2)/(sum(type == 2));
+    TN            = sum(best_mod == 2 & type == 1)/(sum(type == 1));
+    stats(ifold).conf_matrix    = [TP, FP; TN, FN];
+    stats(ifold).class_output   = best_mod;
+    stats(ifold).real_label     = type;
+    stats(ifold).loglike        = loglike_folds;
+    stats(ifold).trailsId       = [test_data.trialId];
+end
+
+
 

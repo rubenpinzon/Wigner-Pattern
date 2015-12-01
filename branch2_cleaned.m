@@ -1,7 +1,4 @@
-%Simplified version of script BRANCH2.m
-%
-%
-%Ruben Pinzon
+% 
 
 clc, close all; clear all;
 cd /media/LENOVO/HAS/CODE/Wigner-Pattern
@@ -32,39 +29,34 @@ n_pyrs          = sum(isIntern==0);
 TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 
-%% Extract the laps
-
-L = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
-
-%% extract the section of interest
-name        ='arms_only';
-in          = 'preturn';
-out         = 'lat_arm';
-debug       = true;
-S           = get_section(L, in, out, debug, name);
-
-%=========================================================================%
-%============       Train GPFA on the theta          =====================%
+% ========================================================================%
+%==============    Extract trials                 ========================%
 %=========================================================================%
 
-bin_size        = 0.04;  %20 ms
-zDim            = 10;    % Target latent dimensions
-min_firing      = 1;
-name_field      = 'arms_only_spike_train';
-showpred        = true;
-mod_tags        = {'_left', '_right', '_both'};
-[D,keep_cell]   = segment(S, bin_size, Fs, min_firing, name_field);
-[D_left, D_right] = split_trails(D);
+D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
 
+% ========================================================================%
+%==============    Extract Running Sections       ========================%
+%=========================================================================%
+in      = 'turn';
+out     = 'lat_arm';
+debug   = true;
+namevar = 'run';
+R       = get_section(D, in, out, debug, namevar);
 
-for m = 1 : length(mod_tags)
-    Data = eval(['D' mod_tags{m}]);
-    M    =  trainGPFA(Data, zDim, showpred);
-    R(m).model_tag = mod_tags{m};
-    R(m).model     = M;
-    clear M Data
-end
+% ========================================================================%
+%==============    Segment the spike vectors      ========================%
+%=========================================================================%
+bin_size            = 0.04; %ms
+min_firing          = 0.5; %minimium firing rate
+[D,keep_neurons]    = segment(R, bin_size, Fs, min_firing, [namevar '_spike_train']);
 
-%% Save data
+% ========================================================================%
+%==============             Train GPFA            ========================%
+%=========================================================================%
+
+zDim        = 10; 
+showpred    = false;
+M           = trainGPFA(D, zDim, showpred);
 
 

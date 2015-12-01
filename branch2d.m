@@ -341,77 +341,71 @@ load([roots{animal} '_branch2_results40ms.mat'])
 load([roots{animal} '_proto_events.mat'])
 
 mod_tags    = {'_left', '_right'};
-
+colors      = hsv(2);
 name_field  = 'data';
 P_seg       = segment(P, 0.004, Fs, keep_cell, name_field); 
+n_folds     = 3;
 
-posterior   = zeros(length(mod_tags), length(P));
-proto_traj  = cell(length(mod_tags), length(P));
-
-colors      = hsv(2);
-    
-for p = 1 : length(P) 
-    for m = 1 : length(mod_tags)
-        %select the model parameters from the fold#1 
-        model = eval(['result_D' mod_tags{m} '.params{1};']);
-        %model.gamma = model.gamma*10;
-        [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);        
-        posterior(m,p) = ll;
-        proto_traj{m,p} = traj;      
-        
-    end       
-        
-    [~, max_mod]  = max(posterior(:,p));
-    loglike_p(p)  = posterior(max_mod, p);
-    
-    %get joint neural space
-    model = result_D.params{1};
-    [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);
-
-    figure(2)
-%     max_mod = P(p).trialType;
-    Xorth = orthogonalize([traj.xsm], model.C);
-%     Xorth = normr(Xorth);
-    
-    plot3(Xorth(1,:),Xorth(2,:),Xorth(3,:),'color',colors(max_mod,:)), hold on
-    plot3(Xorth(1,1),Xorth(2,1),Xorth(3,1),'color',...
-        colors(max_mod,:),'markerfacecolor',colors(max_mod,:),'marker','s')
-%     figure(2)
-%     plot_latent(Xorth, colors(max_mod,:),num2str(p))
-    drawnow
-    fprintf('Proto event %d\n',p);
-    
-end
-
-title('Classified according to trial ')
-set(gcf, 'color','w')
-grid on
-xlabel('X1'),ylabel('X2'),zlabel('X3')
-set(gca,'fontsize',14)
-%max log like P(event|model)
-[val, max_mod]  = max(posterior);
-c               = [1:length(P); max_mod; [P.trialType]]; %{P(proto|model) , realtag}
+for ifold = 1 : folds
+    posterior   = zeros(length(mod_tags), length(P));
+    proto_traj  = cell(length(mod_tags), length(P));
 
 
-%show latent space of running sections
-model = result_D.params{1};
-for i = 1 : length(D)
-    [traj,ll]  = exactInferenceWithLL(D(i), model,'getLL',1);
-    loglike(i) = ll;
-    Xorth = orthogonalize([traj.xsm], model.C);
-    c= 'k';
+    for p = 1 : length(P) 
+        for m = 1 : length(mod_tags)
+            %select the model parameters from the fold#1 
+            model = eval(['result_D' mod_tags{m} '.params{ifold};']);
+            %model.gamma = model.gamma*10;
+            [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);        
+            posterior(m,p) = ll;
+            proto_traj{m,p} = traj;      
 
-    if strcmp(D(i).condition,'left')
-        c = 'm';
-    elseif strcmp(D(i).condition,'right')
-        c = 'b';
+        end       
+
+        [~, max_mod]  = max(posterior(:,p));
+        loglike_p(p)  = posterior(max_mod, p);
+
+        %get joint neural space
+        model = result_D.params{1};
+        [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);
+
+        figure(ifold)
+    %     max_mod = P(p).trialType;
+        Xorth = orthogonalize([traj.xsm], model.C);
+    %     Xorth = normr(Xorth);
+
+        plot3(Xorth(1,:),Xorth(2,:),Xorth(3,:),'color',colors(max_mod,:)), hold on
+        plot3(Xorth(1,1),Xorth(2,1),Xorth(3,1),'color',...
+            colors(max_mod,:),'markerfacecolor',colors(max_mod,:),'marker','s')
+    %     figure(2)
+    %     plot_latent(Xorth, colors(max_mod,:),num2str(p))
+        drawnow
+        fprintf('Proto event %d\n',p);
+
     end
-    Xorth = normr(Xorth);
 
-    plot3(Xorth(1,:),Xorth(2,:),Xorth(3,:),'color',c)
-    hold on
-    drawnow
+    title('Classified according to trial ')
+    set(gcf, 'color','w')
+    grid on
+    xlabel('X1'),ylabel('X2'),zlabel('X3')
+    set(gca,'fontsize',14)
+    %max log like P(event|model)
+    [val, best_mod]  = max(posterior);
+    type            = [P.trialType]; %{P(proto|model) , realtag}
+
+
+    TP            = sum(best_mod == 1 & type == 1)/(sum(type == 1));
+    FN            = sum(best_mod == 2 & type == 2)/(sum(type == 2));
+    FP            = sum(best_mod == 1 & type == 2)/(sum(type == 2));
+    TN            = sum(best_mod == 2 & type == 1)/(sum(type == 1));
+    
+    stats_proto(ifold).conf_matrix    = [TP, FP; TN, FN];
+    stats_proto(ifold).class_output   = best_mod;
+    stats_proto(ifold).real_label     = type;
+    stats_proto(ifold).posterior      = posterior;
+
 end
+
 
 
 %% Cealculate the LogLike(P(run|model)) for test trails to get the baseline

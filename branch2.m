@@ -29,7 +29,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 6;
+animal          = 1;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -112,20 +112,21 @@ SpkRun_DH           = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
 %=========================================================================%
 name = '_branch2_noMidArm.mat';
 if middle_arm
-    name = '_branch2_results40ms.mat';
+    name = '_branch2_results40ms.mat';    
 end
 
 bin_size        = 0.04;  %20 ms
 zDim            = 10;    % Target latent dimensions
 results(1).bin  = bin_size;
-min_firing      = 1.0;
-[D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing);
+min_firing      = 1.1;
+[D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing,'data');
 [D_left, D_right] = split_trails(D);
-showpred        = true; %show the predicted and real firing rates
+showpred        = false; %show the predicted and real firing rates
 folds           = 3;
 try
     load([roots{animal} name])
 catch
+    disp('Training GPFA...')
     % train separately left/right/all 
     for s = 1 : length(conditions)
 

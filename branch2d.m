@@ -49,8 +49,8 @@ TrialType       = data.Laps.TrialType;
 %==============   Extract Stopping section after run =====================%
 %=========================================================================%
 
-debug           = false; %to show diganostic plots
-speed_th        = 50;
+debug           = true; %to show diganostic plots
+speed_th        = 100;
 %this is to remove/add the section in the middle arm of the maze
 sect            = 1; %without middle arm 
 sect_in         = [7, 8]; 
@@ -60,7 +60,7 @@ cnt             = 1;
 
 %read the file with the stable place cells if exist
 try
-    data_pfields    = load([roots{animal} '_stable_pfields.mat']);
+    data_pfields    = load([roots{animal} '_stable_pfieldsN.mat']);
     stable_pfields  = data_pfields.stable_cells;
     %probe_seq       = [data_pfields.D.f_rate_order];
     n_pyr           = length(stable_pfields);
@@ -117,7 +117,6 @@ for lap = 1:n_laps
         %spikes
         n_spks_stop  = zeros(1,n_pyr);
         n_spks_run   = zeros(1,n_pyr);
-        n        = 0;
         all_spks     = []; 
         all_spks_id  = []; 
         t_spks_stop  = cell(1,n_pyr);
@@ -212,9 +211,9 @@ end
 %50 ms window to detect disconnected sequences accoding to Foster & Wilson
 %60 ms window according to Diba Buszaki 2007
 %at least 10 neurons active 
-
+debug    = true;
 t_window = 0.05 * Fs;
-t_max    = 0.5 * Fs;
+t_max    = 0.50 * Fs;
 n_mincell= 10; %minimm number of cells active to be 
                                    %replay preplay considered a event
 cnt      = 1;
@@ -234,9 +233,10 @@ for seq = 1 : length(S)
     % calculate distances between spikes in super vector and show those
     %larger than 50 ms;
     dist_s     = diff(s_spk(1,:));
-    dist_proto = find(dist_s>t_window);
+    dist_proto = [1 find(dist_s>t_window) numel(dist_s)];
     
     if ~isempty(dist_proto)
+        
         
         for p = 1 : length(dist_proto)
             proto_int(:,p) = [s_spk(1,dist_proto(p)) s_spk(1,dist_proto(p)+1)] + S(seq).inlap_pos(1);
@@ -246,6 +246,9 @@ for seq = 1 : length(S)
                 line(proto_int(2,p)*[1 1],[0.5 0.9],'color','k','linewidth',2)
             end
         end
+        %add proto events of the head and tail of the stop periods
+        
+        
         %proto event has to be withing 500 ms. % odd values are disntace
         %within event
         len_proto = diff(proto_int(:)); 
@@ -256,14 +259,15 @@ for seq = 1 : length(S)
 
         for p = 1 : length(p_eve)
 
-            proto(p,:) = [en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)];
-            idx_proto  = find(s_spk(1,:)>=proto(p,1) & s_spk(1,:)<=proto(p,2));
+            proto(p,:)    = [en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)] - S(seq).inlap_pos(1);
+            idx_proto     = find(s_spk(1,:)>=proto(p,1) & s_spk(1,:)<=proto(p,2));
             cell_proto{p} = unique(s_spk(2,idx_proto));   
 
-            k = 'm';
+            k      = 'm';
             size_l = [0.52 0.58];
+            n_cell_proto = length(cell_proto{p});
             %Here are the proto events that fullfill the criteria
-            if length(cell_proto{p}) > n_mincell
+            if  n_cell_proto > n_mincell
                 k = 'r';
                 size_l   = [0 1];
                 P(cnt).duration = proto(p,2)-proto(p,1);
@@ -271,12 +275,14 @@ for seq = 1 : length(S)
                 P(cnt).trialId  = S(seq).TrialId;
                 P(cnt).trialType = S(seq).TrialTypeNo;
                 
-                spk_pro = zeros(n_pyr,P(cnt).duration + 1); %proto event
-                spk_raw = {};
-                for c = 1 : n_pyr
-                    s_idx = find(spk_seq{c}>=proto(p,1) & spk_seq{c}<=proto(p,2));
+                spks_times  =  s_spk(1,idx_proto) - proto(p,1)+1;
+                spk_pro     = zeros(n_pyr,P(cnt).duration + 1); %proto event
+                spk_raw     = {};
+                for cc = 1 : n_cell_proto
+                    c     = cell_proto{p}(cc);
+                    s_idx = spks_times(find(s_spk(2,idx_proto)==c));
                     spk_pro(c,s_idx) = 1;
-                    spk_raw{c} = s_idx;
+                    spk_raw{c}       = s_idx;
                 end
                 P(cnt).data     = spk_pro;
                 P(cnt).spk_raw  = spk_raw;
@@ -287,6 +293,7 @@ for seq = 1 : length(S)
                 line([en_pnt_silent(p_eve(p)) st_pnt_silent(p_eve(p)+1)],[0.55 0.55],'color',k,'linewidth',1) 
                 line(en_pnt_silent(p_eve(p))*[1 1],size_l,'color',k,'linewidth',2)
                 line(st_pnt_silent(p_eve(p)+1)*[1 1],size_l,'color',k,'linewidth',2)
+                text(en_pnt_silent(p_eve(p)), 0.50,sprintf('%d',n_cell_proto),'fontsize',9)
             end
         end
 
@@ -302,7 +309,7 @@ save([roots{animal} '_proto_events.mat'],'P','S')
 
 %% 
 %========================================================================%
-% Shows move and stop sequences for control purposes. Saves png of first lap
+% Shows move and proto events for control purposes. Saves png of first lap
 %=========================================================================%
 
 if show_run_stop
@@ -340,73 +347,47 @@ end
 load([roots{animal} '_branch2_results40ms.mat'])
 load([roots{animal} '_proto_events.mat'])
 
-mod_tags    = {'_left', '_right'};
+models      = {result_D_left result_D_right};
 colors      = hsv(2);
 name_field  = 'data';
 P_seg       = segment(P, 0.004, Fs, keep_cell, name_field); 
 n_folds     = 3;
+debug       = false;
 
-for ifold = 1 : folds
-    posterior   = zeros(length(mod_tags), length(P));
-    proto_traj  = cell(length(mod_tags), length(P));
+%Classification stats of P(proto_event|model) 
+stats       = classGPFA(P_seg, n_folds, debug, models);
+cm    = [stats.conf_matrix];
+fprintf('ShitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
+save([roots{animal} '_confusionM_protoEvents.mat'],'stats')
 
-
-    for p = 1 : length(P) 
-        for m = 1 : length(mod_tags)
-            %select the model parameters from the fold#1 
-            model = eval(['result_D' mod_tags{m} '.params{ifold};']);
-            %model.gamma = model.gamma*10;
-            [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);        
-            posterior(m,p) = ll;
-            proto_traj{m,p} = traj;      
-
-        end       
-
-        [~, max_mod]  = max(posterior(:,p));
-        loglike_p(p)  = posterior(max_mod, p);
-
-        %get joint neural space
-        model = result_D.params{1};
-        [traj, ll] = exactInferenceWithLL(P_seg(p), model,'getLL',1);
-
-        figure(ifold)
-    %     max_mod = P(p).trialType;
-        Xorth = orthogonalize([traj.xsm], model.C);
-    %     Xorth = normr(Xorth);
-
-        plot3(Xorth(1,:),Xorth(2,:),Xorth(3,:),'color',colors(max_mod,:)), hold on
-        plot3(Xorth(1,1),Xorth(2,1),Xorth(3,1),'color',...
-            colors(max_mod,:),'markerfacecolor',colors(max_mod,:),'marker','s')
-    %     figure(2)
-    %     plot_latent(Xorth, colors(max_mod,:),num2str(p))
-        drawnow
-        fprintf('Proto event %d\n',p);
-
-    end
-
-    title('Classified according to trial ')
-    set(gcf, 'color','w')
-    grid on
-    xlabel('X1'),ylabel('X2'),zlabel('X3')
-    set(gca,'fontsize',14)
-    %max log like P(event|model)
-    [val, best_mod]  = max(posterior);
-    type            = [P.trialType]; %{P(proto|model) , realtag}
-
-
-    TP            = sum(best_mod == 1 & type == 1)/(sum(type == 1));
-    FN            = sum(best_mod == 2 & type == 2)/(sum(type == 2));
-    FP            = sum(best_mod == 1 & type == 2)/(sum(type == 2));
-    TN            = sum(best_mod == 2 & type == 1)/(sum(type == 1));
+% 500 Suffled cells id proto events
+n_perms    = 100;
+for s = 1 : n_perms
+    [P_perm,idx] = shuffcells(P_seg);
     
-    stats_proto(ifold).conf_matrix    = [TP, FP; TN, FN];
-    stats_proto(ifold).class_output   = best_mod;
-    stats_proto(ifold).real_label     = type;
-    stats_proto(ifold).posterior      = posterior;
-
+    stats = classGPFA(P_perm, n_folds, debug, models);
+    
+    cm    = [stats.conf_matrix];
+    CM(s).conf_matrix = cm;
+    CM(s).shuffledidx = idx;
+    fprintf('Shuffle %d-th, hitA: %2.2f%%, hitB: %2.2f%%\n',s, 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
 end
+save([roots{animal} '_confusionM_protoEvents_cellShuffle.mat'],'CM')
 
+% 100 Suffled times id proto events
+for s = 1 : n_perms
 
+    P_perm = shufftime(P_seg);
+    
+    stats = classGPFA(P_perm, n_folds, debug, models);
+    
+    cm    = [stats.conf_matrix];
+    CM_time(s).conf_matrix = cm;
+    CM_time(s).stats = stats;
+    fprintf('Shuffle %d-th, hitA: %2.2f%%, hitB: %2.2f%%\n',s, 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
+    clear P_perm
+end
+save([roots{animal} '_confusionM_protoEvents_timeShuffle.mat'],'CM_time')
 
 %% Cealculate the LogLike(P(run|model)) for test trails to get the baseline
 %%of the classifier
@@ -420,26 +401,26 @@ mask        = false(1,length(D)); % for cross validation
 
 
 for ifold = 1 : n_folds    
-    test_mask       = mask;
-    test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
-    test_data       = D(test_mask);
-    loglike_folds   = zeros(length(mod_tags), length(test_data));
-    type            = ones(1, length(test_data));
     
+    loglike_folds   = [];
+
     for mod = 1 : length(mod_tags)
-        model_data = eval(['result_D' mod_tags{mod}]);
+        stest_mask      = mask;
+        model_data      = eval(['result_D' mod_tags{mod}]);
         cv_trials       = model_data.cv_trials;
         fold_indx       = model_data.foldidx;
+        test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+        test_data       = D(test_mask);
+        type            = ones(1, length(test_data));
     
         for ilap = 1 : length(test_data) %for each trial independently
             [~, loglike] = exactInferenceWithLL(test_data(ilap), model_data.params{ifold},'getLL',1);
-            loglike_folds(mod, ilap) = loglike;
-             
+            loglike_folds(mod, ilap) = loglike;    
 
-            if strcmp(test_data(ilap).condition, 'right') && mod == 1
+            if strcmp(test_data(ilap).condition, 'right')
                 type(ilap)  = 2;
             end
-        end        
+        end      
         
     end
     
@@ -449,6 +430,7 @@ for ifold = 1 : n_folds
     FN            = sum(best_mod == 2 & type == 2)/(sum(type == 2));
     FP            = sum(best_mod == 1 & type == 2)/(sum(type == 2));
     TN            = sum(best_mod == 2 & type == 1)/(sum(type == 1));
+    
     stats(ifold).conf_matrix    = [TP, FP; TN, FN];
     stats(ifold).class_output   = best_mod;
     stats(ifold).real_label     = type;
@@ -456,5 +438,102 @@ for ifold = 1 : n_folds
     stats(ifold).trailsId       = [test_data.trialId];
 end
 
+%Time shuffling the running data (D)
+n_perms   = 100;
+clear time_shuff
+for sf = 1 : n_perms
+    fprintf('Permutation %d out of %d...',sf, n_perms)
+    
+    for ifold = 1 : n_folds  
+        for mod = 1 : length(mod_tags)
+            stest_mask      = mask;
+            model_data      = eval(['result_D' mod_tags{mod}]);
+            cv_trials       = model_data.cv_trials;
+            fold_indx       = model_data.foldidx;
+            test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
+            test_data       = D(test_mask);
+            type            = ones(1, length(test_data));
+            test_shuff      = shufftime(test_data);
+            for ilap = 1 : length(test_data) %for each trial independently
+                [~, loglike] = exactInferenceWithLL(test_shuff(ilap), model_data.params{ifold},'getLL',1);
+                loglike_folds(mod, ilap) = loglike;    
+
+                if strcmp(test_shuff(ilap).condition, 'right')
+                    type(ilap)  = 2;
+                end
+            end
+        end
+        %Classification rates
+        [~, best_mod] = max(loglike_folds);
+        TP            = sum(best_mod == 1 & type == 1)/(sum(type == 1));
+        FN            = sum(best_mod == 2 & type == 2)/(sum(type == 2));
+        FP            = sum(best_mod == 1 & type == 2)/(sum(type == 2));
+        TN            = sum(best_mod == 2 & type == 1)/(sum(type == 1));
+
+        stats(ifold).conf_matrix    = [TP, FP; TN, FN];
+        stats(ifold).class_output   = best_mod;
+        stats(ifold).real_label     = type;
+        stats(ifold).loglike        = loglike_folds;
+        stats(ifold).trailsId       = [test_data.trialId];
+
+    end
+    cm    = [stats.conf_matrix];
+    fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
+
+    time_shuff(sf).stats     = stats;
+    clear stats loglike*
+end
 
 
+
+%% show proto events in latent space of running sections
+model = result_D.params{1};
+for i = 1 : length(P_seg)
+    
+    [traj,ll]  = exactInferenceWithLL(P_seg(i), model,'getLL',1);
+    Xorth = orthogonalize([traj.xsm], model.C);
+
+    if stats(1).class_output(i) == 1
+        c = 'cyan';
+    else
+        c = 'r';
+    end
+
+   % plot3(Xorth(1,:),Xorth(2,:),Xorth(3,:),'color',c)
+    plot3(Xorth(1,end),Xorth(2,end),Xorth(3,end),'color',c,'marker','s','markerfacecolor',c)
+    plot3(Xorth(1,1),Xorth(2,1),Xorth(3,1),'color',c,'marker','o','markerfacecolor',c, '')
+
+    hold on
+end
+
+
+%% Change scale of GPFA heuristically and evaluate classification performance
+
+scale = linspace(0.01, 10, 100);
+
+for sc = 1 : length(scale) 
+    
+    stats = classGPFA(P_seg, n_folds, debug, models, scale(sc));
+    cm    = [stats.conf_matrix];
+    CM_scale(sc).conf_matrix = cm;
+    CM_scale(sc).scale = scale(sc);
+    fprintf('Scale %f hitA: %2.2f%%, hitB: %2.2f%%\n',scale(sc), 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
+    
+end
+
+%% Show likelihood of classified proto events
+
+load([roots{animal} '_confusionM_protoEvents_timeShuffle.mat'])
+
+% stats for fold # 1
+for r = 1 : n_perms
+    group     = CM_time(r).stats(1).class_output;
+    for p = 1 : length(group)
+        loglike_CM(r,p)  = CM_time(r).stats(1).posterior(group(p),p);
+    end
+    groups(r,:) = group;
+    clear group
+end
+p         = anova1(loglike_CM(:),groups(:)) 
+
+plot(group, CM, 'x')

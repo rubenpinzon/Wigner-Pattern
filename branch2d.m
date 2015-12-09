@@ -44,6 +44,8 @@ removeInh       = true;
 show_run_stop   = true; %diagnostic plot to show running and stoping spikes
 TrialType       = data.Laps.TrialType;
 
+%set the random generator
+rng(123456)
 %%
 % ========================================================================%
 %==============   Extract Stopping section after run =====================%
@@ -437,16 +439,20 @@ for ifold = 1 : n_folds
     stats(ifold).loglike        = loglike_folds;
     stats(ifold).trailsId       = [test_data.trialId];
 end
+cm    = [stats.conf_matrix];
+fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
 
+
+%%
 %Time shuffling the running data (D)
 n_perms   = 100;
-clear time_shuff
+clear time_shuff best_mod loglike_folds
 for sf = 1 : n_perms
     fprintf('Permutation %d out of %d...',sf, n_perms)
     
     for ifold = 1 : n_folds  
         for mod = 1 : length(mod_tags)
-            stest_mask      = mask;
+            test_mask       = mask;
             model_data      = eval(['result_D' mod_tags{mod}]);
             cv_trials       = model_data.cv_trials;
             fold_indx       = model_data.foldidx;
@@ -459,7 +465,7 @@ for sf = 1 : n_perms
                 loglike_folds(mod, ilap) = loglike;    
 
                 if strcmp(test_shuff(ilap).condition, 'right')
-                    type(ilap)  = 2;
+                      type(ilap)  = 2;
                 end
             end
         end
@@ -475,6 +481,7 @@ for sf = 1 : n_perms
         stats(ifold).real_label     = type;
         stats(ifold).loglike        = loglike_folds;
         stats(ifold).trailsId       = [test_data.trialId];
+        clear loglike_* best_mod*
 
     end
     cm    = [stats.conf_matrix];

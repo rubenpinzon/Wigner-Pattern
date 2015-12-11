@@ -6,7 +6,7 @@ function [D,keep_neurons]=segment(D, bin_size, Fs, keep_neurons, name_var)
 %
 if length(keep_neurons)==1
     min_firing      = keep_neurons;
-    firing_thr      = min_firing; % Minimum firing rate find which  % neurons should be kept
+    firing_thr      = min_firing; % Minimum firing rate find which  neurons should be kept
     m               = mean(eval(['D.' name_var]),2) * Fs;
     keep_neurons    = m >= firing_thr;          
 else

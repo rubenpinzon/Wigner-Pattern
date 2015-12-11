@@ -6,7 +6,7 @@ numLaps         = length(events);
 n_cells         = size(spk,2);
 n_pyrs          = sum(isIntern==0);
 kernel          = gausswin(0.1*Fs);
-color           = hsv(n_pyrs);
+color           = hsv(4);
 
 % Extract spks when the mouse is running 
 for lap = 1:numLaps  

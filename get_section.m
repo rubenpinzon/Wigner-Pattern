@@ -26,7 +26,8 @@ for s = 1 : length(sufix)
     elseif strcmp(sect,'wheel')
         int = 13;
     else
-        disp('not a recognized section. options are [mid_arm, preturn, turn, lat_arm, reward, delay, wheel]')
+        disp('WARNING: section not a recognized section. options are [mid_arm, preturn, turn, lat_arm, reward, delay, wheel]')
+        return;
     end
     eval(['sect_' sufix{s} '= int;'])
 end 

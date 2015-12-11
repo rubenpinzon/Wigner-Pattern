@@ -1,14 +1,19 @@
-% 
+%BRANCH2_CLEANED This script contains a modularized version of the analysis
+%        included in the script branch2.m, that process the HC-5 database.
+%
+%        DESCRIPTION: This script carried out most of the analysis in the files
+%        branch2.m using functions. See branch2.m for further details.
+%Version 1.0 Ruben Pinzon@2015
+
 
 clc, close all; clear all;
-cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
 basepath        = '/media/bigdata/';
 [files, animals, roots]= get_matFiles(basepath);
 
 
 %========================Variables of Interest===========================
-animal          = 6;
+animal          = 1;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -28,35 +33,67 @@ n_cells         = size(spk_lap,2);
 n_pyrs          = sum(isIntern==0);
 TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
-
+clear data
+%section in the maze to analyze
+in              = 'mid_arm';
+out             = 'lat_arm';
+debug           = true;
+namevar         = 'run';
+%segmentation and filtering of silent neurons
+bin_size        = 0.04; %ms
+min_firing      = 1.5; %minimium firing rate
+% GPFA trainign
+n_folds         = 2;
+zDim            = 10; %latent dimension
+showpred        = false; %show predicted firing rate
+train_arms      = true; %train GPFA on arms separately
+name_save_file  = '_trainedGPFA.mat';
 % ========================================================================%
-%==============    Extract trials                 ========================%
+%==============   (1) Extract trials              ========================%
 %=========================================================================%
 
 D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
 
 % ========================================================================%
-%==============    Extract Running Sections       ========================%
+%==============  (2)  Extract Running Sections    ========================%
 %=========================================================================%
-in      = 'turn';
-out     = 'lat_arm';
-debug   = true;
-namevar = 'run';
-R       = get_section(D, in, out, debug, namevar);
+
+R = get_section(D, in, out, debug, namevar);
 
 % ========================================================================%
-%==============    Segment the spike vectors      ========================%
+%============== (3) Segment the spike vectors     ========================%
 %=========================================================================%
-bin_size            = 0.04; %ms
-min_firing          = 0.5; %minimium firing rate
+
 [D,keep_neurons]    = segment(R, bin_size, Fs, min_firing, [namevar '_spike_train']);
 
 % ========================================================================%
-%==============             Train GPFA            ========================%
+%============== (4)         Train GPFA            ========================%
 %=========================================================================%
 
-zDim        = 10; 
-showpred    = false;
-M           = trainGPFA(D, zDim, showpred);
+M                 = trainGPFA(D, zDim, showpred, n_folds);
+model{1}          = M.params{3}; %one of the three folds
+data{1}           = D;  
 
+if train_arms
+    [D_left, D_right] = split_trails(D);
+    M_left            = trainGPFA(D_left, zDim, showpred);
+    M_right           = trainGPFA(D_right, zDim, showpred);
+    model{2}          = M_left.params{3};
+    model{3}          = M_right.params{3}; 
+    data{2}           = D_left;
+    data{3}           = D_right; 
+end
+%#TODO there is a problem with the crossvalidation when one of the folds 
+%includes trials with too few spikes.
+%%
+% ========================================================================%
+%============== (5)    Show Neural Trajectories   ========================%
+%=========================================================================%
 
+Xorth = show_latent(model, data);
+
+%======================================================================== %
+%============== (6)    Save data                  ========================%
+%=========================================================================%
+
+save([roots{animal} name_save_file],'model','data','-v7.3')

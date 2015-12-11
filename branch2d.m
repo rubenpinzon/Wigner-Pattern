@@ -45,7 +45,6 @@ show_run_stop   = true; %diagnostic plot to show running and stoping spikes
 TrialType       = data.Laps.TrialType;
 
 %set the random generator
-rng(123456)
 %%
 % ========================================================================%
 %==============   Extract Stopping section after run =====================%

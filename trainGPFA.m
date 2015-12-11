@@ -1,9 +1,9 @@
-function M = trainGPFA(D, zDim, showpred)
+function M = trainGPFA(D, zDim, showpred, folds)
 %TRAINGPFA trains an cross validates a gpfa model with the data in D, using 3 folds
 %           fields required in D: y: spike trains
 %ruben pinzon 2015
 
-folds           = 3;
+% folds           = 3;
 
 mask            = false(1,length(D)); % for cross validation
 cv_trials       = randperm(length(D));
@@ -18,7 +18,7 @@ paramsGPFA      = cell(1, folds);
 for ifold = 1 : folds  % two-fold cross-validation        
     % prepare masks:
     % test_mask isolates a single fold, train_mask takes the rest
-
+    
     test_mask       = mask;
     test_mask(cv_trials(fold_indx(ifold):fold_indx(ifold+1)-1)) = true;
     train_mask = ~test_mask;

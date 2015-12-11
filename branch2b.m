@@ -1,13 +1,11 @@
-% BRANCH 2b - GPFA analysis of population data for a Linear track with
-% simulated cells
-% git:
-% evernote : 
-% The synthetic cells are store in txt files with two colums, time spike
-% and cell to which it belongs.
-
+% BRANCH 2b - GPFA analysis of The synthetic database created with artificial_ca1.py
+%
+%
+%Version 1.0 Ruben Pinzon@2015
 
 clc, close all; clear all;
-cd /media/LENOVO/HAS/CODE/Wigner-Pattern
+
+%=============(1) Variables  ===============================
 
 basepath        = '/media/bigdata/synthetic/db11/';
 pattern         = 'spwspikes_*.txt';
@@ -15,12 +13,18 @@ description     = 'Training the gpfa on spw';
 Fs              = 1000;
 T_real          = 1.1 * Fs; 
 pattern_rates   = 'spw_rates_*.txt';
+bin_size        = 0.008;  %80 ms
+zDim            = 10;    % Target latent dimensions
+min_firing      = 0.1;
+pattern         = 'spwspikes_*.txt';
+T_real          = 0.1 * Fs;
+bin_size_spw    = 0.002;  %2 ms
+min_firing_spw  = 0;
 
-%======Extraxt the spikes for each cell for each lap======================%
+%======(2) Extraxt the spikes for each cell for each lap ======================%
 
 D               = dir([basepath pattern]);
 n_laps          = length(D);
-
 
 for ilap = 1 : n_laps 
    spikes   = load([basepath D(ilap).name]); 
@@ -47,13 +51,13 @@ for ilap = 1 : n_laps
    F(ilap).condition = 'l_track';
 end
 
-bin_size        = 0.008;  %20 ms
-zDim            = 10;    % Target latent dimensions
-min_firing      = 0.1;
+
 [D,keep_cell]   = segment(D, bin_size, Fs, min_firing);
 showpred        = true; %show the predicted and real firing rates
-%DataHigh(F,'DimReduce')
-%% ==================Using DataHigh Library==============================%%
+%DataHigh(F,'DimReduce'); %Use the DataHigh library to train the GPFA
+
+%% ====== (3) Train GPFA Using DataHigh Library ==============================%%
+
 folds           = 3;
 mask            = false(1,length(D)); % for cross validation
 cv_trials       = randperm(length(D));
@@ -133,12 +137,7 @@ result.like = like;
 result.cv_trials = cv_trials;
 result.foldidx = fold_indx;
 
-%% =======================================================================%
-%========        (2) LogLike p(spw|model)                =================%
-%=========================================================================%
-pattern         = 'spwspikes_*.txt';
-Fs              = 1000;
-T_real          = 0.1 * Fs; 
+%========        (4) LogLike p(spw|model)                =================%
 
 S               = dir([basepath pattern]);
 n_laps          = length(S);
@@ -167,10 +166,7 @@ for ilap = 1 : n_laps
    G(ilap).condition = 'l_track';
 end
 
-bin_size        = 0.002;  %2 ms
-zDim            = 10;    % Target latent dimensions
-min_firing      = 0;
-S               = segment(S, bin_size, Fs, min_firing);
+S               = segment(S, bin_size_spw, Fs, min_firing);
 
 %log like
 [traj_spw, ll_te_spw] = exactInferenceWithLL(S, paramsGPFA{1},'getLL',1);

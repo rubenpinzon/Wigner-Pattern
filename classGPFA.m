@@ -1,7 +1,24 @@
 function stats = classGPFA(P, folds, debug, models, varargin)
-%Binary classification with teh GPFA model
+%CLASSGPFA  Given a data struct P containing spike count vectors and GPFA models, this file computes a
+%           binary classification as the argmax P(data|each_model).
 %
-%Ruben
+%           INPUTS:
+%           P           : DataHigh type struct of dimension (1 x num events)
+%           folds       : number of folds used for crossvalidation during training
+%           debug       : shows debugging and verbose output
+%           models      : cell containing trained GPFA models with dimension (1 x num models)
+%
+%           OUTPUT:
+%           stats       : a struct with dimensions (1 x folds) including the fields
+%                       conf_matrix, class_output, real_label, and posterior, which are
+%                       the classification confusion matrix where positive samples correspond
+%                       to right alternations whereas negative samples are left alternations;
+%                       output of the classifier {1:right, 2:left}, real label, and the
+%                       log posterior P(data|model).
+%
+%
+%Version 1.0 Ruben Pinzon@2015
+
 
 scale = false;
 if nargin>4

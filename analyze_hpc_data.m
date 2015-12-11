@@ -1,25 +1,23 @@
-%script to study the synthetic database created by Balasz
+%ANALYZE_HPC_DATA Script to analyze the synthetic database created by Balázs Ujfalussy to study the GPFA model under
+%                 controlled conditions including the number of place cells, firing rate, underlying dimension of
+%                 dynamics. The outcome (expected) is a comparison of the estimated latent dimensionality of the database
+%                 given by validation with the GPFA, and the real dimension in the data.
+%                 the source files are hosted at https://bitbucket.org/bbu20/hpc_data
+%                 Description of the database:
+%                   An R library to generate synthetic hipocampal data with different intrinsic dimensionality
+%                   and environment size.
 %
-%https://bitbucket.org/bbu20/hpc_data
+%                 USAGE: Set the variable basepath to the location of the folder HPC-Data containing the database
+%                 The function get_matFiles will search and load the spike_Dx_Lx.dat files inside the folder.
 %
-%DATA:
-% the position of the animal and the spike-times are provided in 25
-% simulations
-% 	- the length of the data is 10 min with 100 Hz (60 000 data points) 
-% 	- the activity of 100 neurons is provided
-% 	- only cells with at least 1 place field in the given environment are
-%     simulated
-% 
-% the size of the environment, L={4, 8, 6, 32, 64} and its dimensionality,
-% D={1-5} are varied
-% 
-% pos_Dx_Ly.dat: each row contains the n-dimensional position, time 
-% goes from 0.01 s to 600 s
-% spikes_Dx_Ly.dat: first column is spike time (s) second is cell-id.
+%                 WHAT IT DOES: Reads the spike files in the database and wrap them up in the DataHigh structure to be
+%                 processed by the DataHigh GUI, which carries out dimensionality reduction.
+%(This script is still under development)
 %
+%Version 1.0
+%Ruben Pinzon Dec@2015
 
 clc, close all; clear all;
-cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
 basepath        = '/media/bigdata/';
 files           = get_matFiles(basepath,'/spike*','*HPC-Data');
@@ -27,7 +25,7 @@ Fs              = 100;
 condition       = {'going' 'returning'};
 colors          = hsv(3);
 
-for sce = 2 : 2%length(files)
+for sce = 1 : length(files)
     
    data           = readdat(files{sce});  
    [pos, laps]    = readdat(strrep(files{sce},'spike','pos'));
@@ -59,8 +57,7 @@ for sce = 2 : 2%length(files)
        D(ilap).condition   = condition{dir_lap};
        D(ilap).epochColors = colors(dir_lap,:);
    end
-   %DataHigh(D, 'DimReduce');
-
-   
+   %open DimReduce GUI to process the wrapped database
+   DataHigh(D, 'DimReduce');
 end
 

@@ -1,5 +1,13 @@
 __author__ = 'ruben'
-__doc__ = 'Based on: Interpreting Neuronal Population Activity by Reconstruction: Unified Framework With' \
+__doc__ = 'This file simulates place cells in the hippocampus running in the linear track' \
+          'parameters:' \
+          'basepath = to save the output files with the spike, speed, location information' \
+          'n_cells = number of cells to simulate' \
+          'n_laps = number of laps to simulate' \
+          'speed = average speed of the animal simulated as a OU process' \
+          'min_pos = minimum position of the animal in the linear track' \
+          'max_pos = maximum position of the animal in the linear track' \
+          'Based on: Interpreting Neuronal Population Activity by Reconstruction: Unified Framework With' \
           ' Application to Hippocampal Place Cells Kechen Zhang , Iris Ginzburg , Bruce L. McNaughton' \
           ' , Terrence J. Sejnowski Journal of NeurophysiologyPublished 1 February 1998Vol. 79no. ' \
           '1017-. and code from https://github.com/nwilming/hpdecode.git'
@@ -173,8 +181,8 @@ if __name__ == '__main__':
     basepath = '/media/bigdata/synthetic/db11/'
     extra_hd = 'spw'
     show = True
-    n_cells = 100  # number of neurons
-    n_laps = 50  # number of laps
+    n_cells = 10  # number of neurons
+    n_laps = 5  # number of laps
     speed = 10.  # cm/s
     min_pos = 75
     max_pos = 90  # linear track is 100 mm long

@@ -1,34 +1,51 @@
-% BRANCH 2 - During maze experiments, using a model trained in the theta 
-% regime, predict activity in SPW regime keeping all the parameters of the 
-% model unchanged but the time constant in the GPs.
-% 
-% Addendum Gergo: the purpose of this exercise is to be able to extend 
-% beyond the conclusions of the linear maze by checking the translation 
-% of the theta-regime subspace to the SPW-regime subspace in cases when 
-% there are different behavioral contexts. Proposed analyses:
+% BRANCH 2 This script contains the procedure to process the HC-5 database
+%          which is a behavioral experiment with rat on a delayed T-maze
+%          protocol. Recordings from CA1, EC, are included in the database
+%          Link: https://crcns.org/files/data/hc-5. The process refers to
+%          extracting the spike information by laps of pyramidal cells,
+%          modeling the spike trains using a GPFA, and perform validation.
 %
-% (1), train a GPFA on left-arm trajectories and right-arm trajectories 
-% separately and also jointly, then analysing SPWS following different 
-% choices made, 
+%          DESCRIPTION:
+%          In the first part (1) the scrip reads and extract the spike times
+%          of each cell for the whole duration of the experiment. Then, (2) the
+%          running section of the protocol is selected, which correspond to
+%          when the animal enters the T-maze and runs to the left/right arm
+%          alternating between choices. The spike information is wrapped up
+%          in a DataHigh struct for processing with the GPFA model. This
+%          struct of dimension (1 x n_laps) contains as fields: y, trialId,
+%          T, the binned spike train os zeros and ones (n_cells x n_bins),
+%          the trial id, and the number of bins, respectively. Other fields
+%          are optional. (3) The GPFA model is trained for left, right and all
+%          the trials separately, thus, generating three models. (4) the neural
+%          trajectories are shown in the orthogonalized space using the three
+%          largest principal components of SVD of the models. In (5) the effect
+%          in the latent variables of the models by changing the scale of the
+%          kernel in the GPFA is shown. (6) the SPWs identify by Attila are
+%          extracted and analyzed with the three models trained during running.
+%          The model time scale can be readjusted by using the M step in the EM
+%          learning algorithm of the GPFA to compensate for the shorter duration
+%          of the SPWs in comparison with the running laps. (7) shows simple
+%          correlations of spike counts between different sections in the maze,
+%          and finally (8) shows the analysis of SPWs with the RUN models.
 %
-% (2), as a control a similar analysis of SPWs preceding specific choices ;
+%          USAGE: Going step by step in this script would make clear the variables
+%          used at each step.
 %
-% (3), compare a two-D FA
+%          See also: branch2b, branch2c, branch2d, branch2e, and branch2_cleaned
+%          for a modularized version of this script.
 %
-% (4), a similar analysis for SPW following wheel running: using either 
-%
-% GPFA trained on the exploration or during wheel running. Comparing the 
-% SPWs following exploration and those following wheel running 
+%Version 1.0 Ruben Pinzon@2015
 
 
 clc, close all; clear all;
-cd /media/LENOVO/HAS/CODE/Wigner-Pattern
 
 basepath        = '/media/bigdata/';
 [files, animals, roots]= get_matFiles(basepath);
 
+% =======================================================================%
+%======================(1)Variables of Interest==========================%
+% =======================================================================%
 
-%========================Variables of Interest===========================
 animal          = 1;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
@@ -50,10 +67,21 @@ n_cells         = size(spk_lap,2);
 color           = jet(55);
 conditions      = {'_left', '_right', ''};
 middle_arm      = true;
-% =======================================================================%
-%==============   Extract Running Sections        ========================%
-%=========================================================================%
+saveplot        = true;
 debug           = true; %to show diganostic plots
+bin_size        = 0.04;  %20 ms
+zDim            = 10;    % Target latent dimensions
+results(1).bin  = bin_size; %struct to save the results
+min_firing      = 1.1; %minimum firing rate of the pyramidal cells
+showpred        = false; %show the predicted and real firing rates
+folds           = 3; %number of fold for crossvalidation
+s_gamma         = [0.1 0.5 1 2 10]; %scale factors for the time lenght of the GP
+updateGP        = true; %update the GP scale using the M step of the EM alg. for the SPWs
+removeInh       = true;
+% =======================================================================%
+%==============   (2) Extract Running Sections    ========================%
+%=========================================================================%
+
 %this is to remove/add the section in the middle arm of the maze
 sect            = [3, 4];   
 if middle_arm
@@ -108,21 +136,17 @@ SpkRun_DH           = get_high(SpkRun_lap(:,isIntern==0), MaxTimeE,...
                      trial, color_trial, 'run', onlyCorrectTrial);
 
 %% =======================================================================%
-%======== (1) Train on Left/Right arms separately        =================%
+%======== (3) Train on Left/Right arms separately        =================%
 %=========================================================================%
 name = '_branch2_noMidArm.mat';
 if middle_arm
     name = '_branch2_results40ms.mat';    
 end
 
-bin_size        = 0.04;  %20 ms
-zDim            = 10;    % Target latent dimensions
-results(1).bin  = bin_size;
-min_firing      = 1.1;
+
 [D,keep_cell]   = segment(SpkRun_DH, bin_size, Fs, min_firing,'data');
 [D_left, D_right] = split_trails(D);
-showpred        = false; %show the predicted and real firing rates
-folds           = 3;
+
 try
     load([roots{animal} name])
 catch
@@ -191,9 +215,10 @@ catch
         'result_D', 'result_D_left', 'result_D_right', 'D', 'keep_cell', 'X_lap','Y_lap')
 end
 
-%% %%%%%%%%show orthogonalized latent variables:%%%%%%%%%%%%%%%%%%%%
+%% =======================================================================%
+%  =============(4) show orthogonalized latent variables: ================%
+%  =======================================================================%
 
-saveplot = true;
 
 for s = 1 : length(conditions)
     
@@ -276,9 +301,10 @@ for s = 1 : length(conditions)
         
 end
 
-%% =====Effects of changing the kernel lenght on the latent variables=====
+%% =======================================================================%
+% ==  (5)Effects of changing the kernel length on the latent variables=====
+% ========================================================================%
 
-s_gamma = [0.1 0.5 1 2 10];
 c           = lines(length(s_gamma));
 figure(11)
 set(gcf, 'position', [1,1,1424,400], 'color', 'w')
@@ -312,12 +338,11 @@ end
 
 
 %% =======================================================================%
-%======== (2) Get SPWs in the reward or wheel area       =================%
+%======== (6) Get SPWs in the reward or wheel area       =================%
 %=========================================================================%
 D           = SpkRun_DH;
 markers     = 1.25*load([roots{animal} '_spws.txt']); %from ms to samples
-updateGP    = true;
-removeInh   = true;
+
 
 figure(20), hold on
 set(gcf, 'position', [0 1 1000 300], 'color', 'w')
@@ -432,7 +457,7 @@ set(gca,'fontsize',12)
 
 %%
 %=========================================================================%
-%====================      Correlations    ===============================%
+%==================== (7)  Correlations    ===============================%
 %=========================================================================%
 % Theta Right vs Theta Left
 % Theta Right vs SPW right
@@ -485,26 +510,26 @@ end
 %(Right theta vs right spw)
 
 %% =======================================================================%
-%========            (3) Test model on SPWs              =================%
+%========            (8) Test model on SPWs              =================%
 %=========================================================================%
 
 params          = result_D_left.params{ifold};
  
- SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
+SpkSPW_DH       = get_high(SpkSPW(:,keep_cell==1), ceil(spw_len*Fs),...
                       spw_type, color_spw, 'spw', 0);
  
- D               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %2ms bin size
- D               = filter_condition(D, spw_tag{1}, 2);
- %D               = D(20:30);
- [traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);
- [Xorth, Corth]  = orthogonalize([traj.xsm], params.C);
- 
- T              = [0 cumsum([D.T])];
- 
- %retrained the GPs
- if updateGP
-     [paramsUP,seq,ll]      = update_gps(params, D, 150);
-     [traj, ll_te]  = exactInferenceWithLL(D, paramsUP,'getLL',1);
-     [Xorth, Corth] = orthogonalize([traj.xsm], paramsUP.C);
- end
+D               = segment(SpkSPW_DH, 0.004, Fs, 0.01); %2ms bin size
+D               = filter_condition(D, spw_tag{1}, 2);
+%D               = D(20:30);
+[traj, ll_te]   = exactInferenceWithLL(D, params,'getLL',1);
+[Xorth, Corth]  = orthogonalize([traj.xsm], params.C);
+
+T              = [0 cumsum([D.T])];
+
+%retrained the GPs
+if updateGP
+ [paramsUP,seq,ll]      = update_gps(params, D, 150);
+ [traj, ll_te]  = exactInferenceWithLL(D, paramsUP,'getLL',1);
+ [Xorth, Corth] = orthogonalize([traj.xsm], paramsUP.C);
+end
 

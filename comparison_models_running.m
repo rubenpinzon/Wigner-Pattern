@@ -1,5 +1,8 @@
-%comparison of models trainned with (w) and without (wth) the middle arm in
-%the maze running section 
+%Scrip to compare the GPFA models trained with  and without the middle arm in
+%the maze running section
+%
+%
+%Ruben Pinzon@2015
 clear all, clc
 
 % with middle arm

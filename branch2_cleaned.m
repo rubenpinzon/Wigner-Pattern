@@ -13,7 +13,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 1;
+animal          = 7;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -71,15 +71,15 @@ R = get_section(D, in, out, debug, namevar);
 %=========================================================================%
 
 M                 = trainGPFA(D, zDim, showpred, n_folds);
-model{1}          = M.params{3}; %one of the three folds
+model{1}          = M.params{1}; %one of the three folds
 data{1}           = D;  
 
 if train_arms
     [D_left, D_right] = split_trails(D);
-    M_left            = trainGPFA(D_left, zDim, showpred);
-    M_right           = trainGPFA(D_right, zDim, showpred);
-    model{2}          = M_left.params{3};
-    model{3}          = M_right.params{3}; 
+    M_left            = trainGPFA(D_left, zDim, showpred, n_folds);
+    M_right           = trainGPFA(D_right, zDim, showpred, n_folds);
+    model{2}          = M_left.params{1};
+    model{3}          = M_right.params{1}; 
     data{2}           = D_left;
     data{3}           = D_right; 
 end

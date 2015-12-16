@@ -1,4 +1,11 @@
 function plot_firing(cvdata, true_data, T, varargin)
+%PLOTFIRING is an auxiliary function to plot the predicted firing
+%           and the real firing rate of the cells during the GPFA
+%           training procedure.
+%
+%
+%see also branch2, branch2_cleaned.m
+%Ruben Pinzon @ 2015
 
 %[val, order]  = sort(sum((cvdata-true_data).^2,2));
 plot_rates = false;

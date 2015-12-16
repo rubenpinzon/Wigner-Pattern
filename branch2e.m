@@ -1,11 +1,19 @@
-clc, close all; clear all;
-cd /media/LENOVO/HAS/CODE/Wigner-Pattern
+%BRANCH 2E Script to find the pyramidal cells with stable place fields according
+%       to Pastalkova, E., Itskov, V., Amarasingham, A., & Buzsáki, G. (2008).
+%       Internally generated cell assembly sequences in the rat hippocampus.
+%       Science, 321(5894), 1322-1327.
+%
+%
+%Ruben Pinzon@2015
 
-basepath        = '/media/bigdata/';
-[files, animals, roots]= get_matFiles(basepath);
+clc, close all; clear all;
+
 
 
 %========================Variables of Interest===========================
+
+basepath        = '/media/bigdata/';
+[files, animals, roots]= get_matFiles(basepath);
 animal          = 1;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
@@ -28,13 +36,13 @@ TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 
 % ========================================================================%
-%==============             Extract lap           ========================%
+%==============       (1)   Extract lap           ========================%
 %=========================================================================%
 
 D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
 
 % ========================================================================%
-%==============       Find stable pcells          ========================%
+%==============   (2) Find stable pcells          ========================%
 %=========================================================================%
 
 debug       = true;

@@ -1,4 +1,16 @@
 function plot_xorth(x1,x2,x3, fig,label, color, varargin)
+%PLOT_XORTH auxiliary function to show the neural space constructed with the three main vectors in the
+%           SVD of the mapping matrix C in the GPFA model.
+%
+%       INPUTS:
+%       x1, x2, x3 : three main vectors of SVD(C), where C is the mapping matrix in the GPFA
+%       fig : handles of the parent figure
+%       label : name of the projection
+%       color : linecolor property
+%
+%see also branch2, branch2_cleaned.m
+%Ruben Pinzon @ 2015
+
 
 name = '';
 if length(varargin) ~=0

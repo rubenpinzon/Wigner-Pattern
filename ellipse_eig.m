@@ -1,6 +1,12 @@
 function ellipse_eig(data, fig, color)
+%ELLIPSE_EIG Calculate the eigenvectors and eigenvalues
+%            of the input data in R^2 and prints in the
+%            figure passed as parameters the corresponding
+%            ellipse.
+%
+%Ruben Pinzon @2015
 
-% Calculate the eigenvectors and eigenvalues
+
 covariance = cov(data);
 [eigenvec, eigenval ] = eig(covariance);
 

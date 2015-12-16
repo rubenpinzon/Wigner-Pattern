@@ -1,12 +1,17 @@
-%Identifying the cells with defined place fields Place and episode fields.
-%On each trial each neuron's spike train was convolved with a Gaussian (SD 
-%100msec, sampling rate 1250 Hz). firing rate in a wheel as “episode fields”.
-%Place fields on the maze and episode fields in the wheel were defined by 
-%a minimal peak firing rate of 6.0 Hz or 5Hz and peak firing rate being at
-%least 4.5-times or 3-times SD above a mean firing rate, respectively.
-%Using these different criteria yielded similar results. The width
-%From [Pastalkova 2008] Internally Generated Cell Assembly Sequences in the
-%Rat Hippocampus
+%PLACEFIELDS is a script to identify the pyramidal cells in teh HC-5 database
+%       with stable place fields
+%       DESCRIPTION:
+%       Identifying the cells with defined place fields Place and episode fields.
+%       On each trial each neuron's spike train was convolved with a Gaussian (SD
+%       100msec, sampling rate 1250 Hz). firing rate in a wheel as “episode fields”.
+%       Place fields on the maze and episode fields in the wheel were defined by
+%       a minimal peak firing rate of 6.0 Hz or 5Hz and peak firing rate being at
+%       least 4.5-times or 3-times SD above a mean firing rate, respectively.
+%       Using these different criteria yielded similar results. The width
+%       From [Pastalkova 2008] Internally Generated Cell Assembly Sequences in the
+%       Rat Hippocampus
+%
+%Ruben Pinzon@2015
 
 clc, close all; clear all;
 cd /media/LENOVO/HAS/CODE/Wigner-Pattern

@@ -1,14 +1,14 @@
 function count = countROIspks(x, y, grid, show)
-    %COUNTROISPKS Counts the spikes inside a grid partition
-    %   
-    %   COUNT = countROIspks(x, y, grid, show)
-    %           x and y are the coordinates of the spike event
-    %           grid with dimension 2 x 5 x S, containes the
-    %           partitions of the area in S segments. Show enables the
-    %           ploting of the countign and ROI regions along with the spks
-    %
-    %Rube Pinzon
-    %version 1.0 2015
+%COUNTROISPKS Counts the spikes inside a grid partition
+%
+%   COUNT = countROIspks(x, y, grid, show)
+%           x and y are the coordinates of the spike event
+%           grid with dimension 2 x 5 x S, containes the
+%           partitions of the area in S segments. Show enables the
+%           ploting of the countign and ROI regions along with the spks
+%
+%Rube Pinzon
+%version 1.0 2015
     
     xcopy = x;
     ycopy = y;

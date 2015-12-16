@@ -1,5 +1,19 @@
 % BRANCH 2b - GPFA analysis of The synthetic database created with artificial_ca1.py
 %
+%            DESCRIPTION:
+%            (1) Sets working variables.
+%            (2) Extracts the spikes for each lap in the files produced by the script artificial_ca1.py
+%            . It also wraps up the data into a datahigh struct for easing the processing with the GPFA
+%            library. (3) Trains and validates the GPFA model using cross validation. (4) If spws were
+%            generated in the synthetic database, here the P(spw|model) is computed.
+%
+%            USAGE:
+%            set the variable basepath to the folder where the files produced by the script
+%            artificial_ca1.py reside. Set the number of folds, latent dimension (zDim) for
+%            minimum firing rate (min-firing) for the cross validation during
+%            the training of the GPFA and then you are good to go.
+%
+%            see also artificial_ca1.py, branch2.m, branch2_cleaned.m
 %
 %Version 1.0 Ruben Pinzon@2015
 
@@ -20,8 +34,10 @@ pattern         = 'spwspikes_*.txt';
 T_real          = 0.1 * Fs;
 bin_size_spw    = 0.002;  %2 ms
 min_firing_spw  = 0;
+folds           = 3;
+saveplot        = true;
 
-%======(2) Extraxt the spikes for each cell for each lap ======================%
+%======(2) Extract the spikes for each cell for each lap ======================%
 
 D               = dir([basepath pattern]);
 n_laps          = length(D);
@@ -58,11 +74,9 @@ showpred        = true; %show the predicted and real firing rates
 
 %% ====== (3) Train GPFA Using DataHigh Library ==============================%%
 
-folds           = 3;
 mask            = false(1,length(D)); % for cross validation
 cv_trials       = randperm(length(D));
 fold_indx       = floor(linspace(1,length(D)+1, folds+1));
-saveplot        = true;
 
 for ifold = 1 : 1%folds  % two-fold cross-validation        
     % prepare masks:

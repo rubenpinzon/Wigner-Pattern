@@ -1,5 +1,5 @@
 function [gpfa_params, gpfa_traj, LL] = gpfa_mod(D,dims,varargin)
-% GPFA_ENGINEDH A modified GPFA_ENGINE for the DataHigh program
+% GPFA_MOD A modified version of GPFA_ENGINE for the DataHigh program
 %
 %  Inputs:
 %   D -- struct of trajectories, make sure it conforms to gpfa's format
@@ -7,7 +7,8 @@ function [gpfa_params, gpfa_traj, LL] = gpfa_mod(D,dims,varargin)
 %   emMaxIters (optional) --- number of iterations GPFA will go to
 %   wb (optional) --- updates waitbar
 %   binWidth (optional, default:20) --- if you want to change binWidth
-%  Copyright Benjamin Cowley, Matthew Kaufman, Zachary Butler, Byron Yu, John Cunningham, 2012-2013
+%  Copyright Benjamin Cowley, Matthew Kaufman, Zachary Butler, Byron Yu,
+%  John Cunningham, 2012-2013
 
 % ---GNU General Public License Copyright---
 % This file is a modified version of gpfa_engineHD.m inside DataHigh.

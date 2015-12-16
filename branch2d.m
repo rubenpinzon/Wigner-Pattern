@@ -1,25 +1,45 @@
-%Branch 2d IDENTIFYING REPLAY EVENTS AFTER ACTIVITY
+%Branch 2d SCRIPT FOR IDENTIFYING REPLAY EVENTS AFTER ACTIVITY
 %
+%   USAGE: (1) set the value of the global variables. (2) Extract the stopping
+%   region after an alternation which corresponds to the reward area and store
+%   all critical information (e.g., spikes, speed) in the struct S. (3) For control
+%   purposes the raster during the running section and speed of the animal is shown
+%   along the stopping periods extracted. (4) The super vector of activity during
+%   the stopping periods is plotted. The super vector is constructed by joining
+%   the spike times of all neurons in a single vector. Then silent periods of at
+%   lest 50ms are detected to extract proto events. (5) Shows the proto events
+%   extracted (6) Compute P(proto_event|model) with the model trained during the
+%   running section, and classify each proto events according to the maximum likelihood
+%   (7) Here shuffling controls are performed to test the values of loglikehood found.
+%   the shuffling is made in time (bins) and contribution in the GPFA model (Cell ids).
+%   (8) Calculates Loglike(P(run|model)) to have a baseline performance (9) Study the
+%   run trials wrongly classified (10) Time shuffling the run trials to assess the
+%   time structure of this data. (11) show proto events in latent space of running sections
+%   (12) Change scale of GPFA heuristically and evaluate the classification scores.
 %
-%Here the stopping periods after running are analyzed following the
-%procedure described in Foster&Wilson 2006 Neuron 36, A spike train was 
-%constituted from all spikes (from all cellsin the probe sequence) that 
-%occurred during stopping periods while the animal faced in the direction
-%in which it had just run. This spike train was then broken between every
-%pair of successive spikes separated by more than 50 ms, to form a large 
-%set of proto-events. Those proto-events in which at least one-third of 
-%the cells in the probe sequence fired at least one spike were then 
-%selected as events. The few events longer than 500 ms in duration were 
-%rejected as a potential source of spurious correlations. 
+%   DESCRIPTION:
+%   Here the stopping periods after running are analyzed following the
+%   procedure described in Foster&Wilson 2006 Neuron 36, A spike train was
+%   constituted from all spikes (from all cells in the probe sequence) that
+%   occurred during stopping periods while the animal faced in the direction
+%   in which it had just run. This spike train was then broken between every
+%   pair of successive spikes separated by more than 50 ms, to form a large
+%   set of proto-events. Those proto-events in which at least one-third of
+%   the cells in the probe sequence fired at least one spike were then
+%   selected as events. The few events longer than 500 ms in duration were
+%   rejected as a potential source of spurious correlations.
+%
+%Version 1.0 Ruben Pinzon@2015
 
 clc, close all; clear all;
-cd /media/LENOVO/HAS/CODE/Wigner-Pattern
+
+% ========================================================================%
+%==================== (1) Variables of Interest ===========================
+% ========================================================================%
 
 basepath        = '/media/bigdata/';
 [files, animals, roots]= get_matFiles(basepath);
 
-
-%========================Variables of Interest===========================
 animal          = 6;
 disp(['Processing folder: ' animals{animal}]);
 data            = load(files{animal});
@@ -43,22 +63,24 @@ color           = jet(sum(isIntern==0));
 removeInh       = true;
 show_run_stop   = true; %diagnostic plot to show running and stoping spikes
 TrialType       = data.Laps.TrialType;
-
-%set the random generator
-%%
-% ========================================================================%
-%==============   Extract Stopping section after run =====================%
-%=========================================================================%
-
 debug           = true; %to show diganostic plots
 speed_th        = 100;
 %this is to remove/add the section in the middle arm of the maze
-sect            = 1; %without middle arm 
-sect_in         = [7, 8]; 
+sect            = 1; %without middle arm
+sect_in         = [7, 8];
 sect_out        = [7, 8];
 cnt             = 1;
-% Extract spks when the mouse is running and in the wheel to calculate
+debug           = true;
+t_window        = 0.05 * Fs;
+t_max           = 0.50 * Fs;
+n_mincell       = 10; %minimm number of cells active to be
 
+%%
+% ========================================================================%
+%============ (2) Extract Stopping section after run =====================%
+%=========================================================================%
+
+% Extract spks when the mouse is running and in the wheel to calculate
 %read the file with the stable place cells if exist
 try
     data_pfields    = load([roots{animal} '_stable_pfieldsN.mat']);
@@ -171,8 +193,9 @@ fprintf('Number of stoping events (speed<%d) = %d\n',speed_th,length(S))
 fprintf('Next: searching for protoevents\n')
 %% 
 %========================================================================%
-% Shows move and stop sequences for control purposes. Saves png of first lap
-%=========================================================================%
+%========  (3) Shows move and stop sequences for control purposes========%
+%========               Saves png of first lap                  =========%
+%========================================================================%
 if show_run_stop
     t_ids      = [S.TrialId];
     unique_tr    = unique(t_ids);
@@ -206,16 +229,13 @@ if show_run_stop
 end
 %%
 %=========================================================================%
-%==============   Extract super vector of spikes     =====================%
+%============== (4)  Extract super vector of spikes     ==================%
 %=========================================================================%
 
 %50 ms window to detect disconnected sequences accoding to Foster & Wilson
 %60 ms window according to Diba Buszaki 2007
 %at least 10 neurons active 
-debug    = true;
-t_window = 0.05 * Fs;
-t_max    = 0.50 * Fs;
-n_mincell= 10; %minimm number of cells active to be 
+
                                    %replay preplay considered a event
 cnt      = 1;
 for seq = 1 : length(S)
@@ -310,8 +330,9 @@ save([roots{animal} '_proto_events.mat'],'P','S')
 
 %% 
 %========================================================================%
-% Shows move and proto events for control purposes. Saves png of first lap
-%=========================================================================%
+%========= (5) Shows move and proto events for control purposes =========%
+%=========                Saves png of first lap              ===========%
+%========================================================================%
 
 if show_run_stop
     t_ids      = [P.trialId];
@@ -341,8 +362,8 @@ end
 
 %%
 %=========================================================================%
-%============ Load GPFA models from the running laps =====================%
-%============ Compute loglike P(proto_event|model)   =====================%
+%=========(6) Load GPFA models from the running laps =====================%
+%=========    Compute loglike P(proto_event|model)   =====================%
 %=========================================================================%
 
 load([roots{animal} '_branch2_results40ms.mat'])
@@ -360,6 +381,10 @@ stats       = classGPFA(P_seg, n_folds, debug, models);
 cm    = [stats.conf_matrix];
 fprintf('ShitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
 save([roots{animal} '_confusionM_protoEvents.mat'],'stats')
+%%
+%=========================================================================%
+%=========(7) Shuffle controls time and cell IDs     =====================%
+%=========================================================================%
 
 % 500 Suffled cells id proto events
 n_perms    = 100;
@@ -375,7 +400,7 @@ for s = 1 : n_perms
 end
 save([roots{animal} '_confusionM_protoEvents_cellShuffle.mat'],'CM')
 
-% 100 Suffled times id proto events
+% 100 Shuffled times id proto events
 for s = 1 : n_perms
 
     P_perm = shufftime(P_seg);
@@ -390,8 +415,12 @@ for s = 1 : n_perms
 end
 save([roots{animal} '_confusionM_protoEvents_timeShuffle.mat'],'CM_time')
 
-%% Cealculate the LogLike(P(run|model)) for test trails to get the baseline
-%%of the classifier
+%%
+%=========================================================================%
+%====== (8) Calculate the LogLike(P(run|model)) for test    ==============%
+%======      running trails to get the baseline             ==============%
+%=========================================================================%
+
 
 load([roots{animal} '_branch2_results40ms.mat'])
 
@@ -441,9 +470,22 @@ end
 cm    = [stats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
 
+%========================================================================%
+%======== (9) Study the trials wrongly classified  =======================
+%========================================================================%
 
+err_cla     = [];
+for ifold = 1 : n_folds
+    err_cla =  [err_cla stats(ifold).trailsId(stats(ifold).class_output ~= stats(ifold).real_label)];    
+end
+err_cla = unique(err_cla);
+
+showPos(X,Y, events, err_cla)
 %%
-%Time shuffling the running data (D)
+%========================================================================%
+%======== (10) Time shuffling the running data (D)  ======================
+%========================================================================%
+
 n_perms   = 100;
 clear time_shuff best_mod loglike_folds
 for sf = 1 : n_perms
@@ -490,9 +532,11 @@ for sf = 1 : n_perms
     clear stats loglike*
 end
 
+%%
+%========================================================================%
+%======(11) show proto events in latent space of running sections =======%
+%========================================================================%
 
-
-%% show proto events in latent space of running sections
 model = result_D.params{1};
 for i = 1 : length(P_seg)
     
@@ -511,9 +555,11 @@ for i = 1 : length(P_seg)
 
     hold on
 end
-
-
-%% Change scale of GPFA heuristically and evaluate classification performance
+%%
+%========================================================================%
+%=======   (12) Change scale of GPFA heuristically and evaluate ===========
+%=======              classification performance               ===========
+%========================================================================%
 
 scale = linspace(0.01, 10, 100);
 
@@ -538,7 +584,7 @@ for r = 1 : n_perms
         loglike_CM(r,p)  = CM_time(r).stats(1).posterior(group(p),p);
     end
     groups(r,:) = group;
-    clear group
+    clear group==
 end
 p         = anova1(loglike_CM(:),groups(:)) 
 

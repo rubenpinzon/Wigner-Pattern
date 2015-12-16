@@ -1,5 +1,5 @@
 __author__ = 'ruben'
-__doc__ = 'Query the sqlite database of Buszaki hc database to extract cells, cellType, region. It outputs a txt file'
+__doc__ = 'Query the sqlite database of Buszaki HC database to extract cells, cellType, region. It outputs a txt file'
 
 import sqlite3 as sqlite
 

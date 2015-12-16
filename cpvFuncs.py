@@ -1,5 +1,5 @@
 __author__ = 'ruben'
-__doc__ = ''
+__doc__ = 'File to generate observations from a Gaussian process with arbitrary covariance kernels'
 
 import numpy as np
 from matplotlib import pyplot as plt

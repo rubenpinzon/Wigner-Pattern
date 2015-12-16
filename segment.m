@@ -1,9 +1,14 @@
 function [D,keep_neurons]=segment(D, bin_size, Fs, keep_neurons, name_var)
 %SEGMENT remove low firing rate neurons and segments in non-overlapping
 %        windows
-%        namevar is the name of the field in the structure D which is to be 
+%        namevar: is the name of the field in the structure D which is to be
 %        segmented.
+%        Fs: sampling frequency
+%        keep_neurons: a vector indicating neurons to include '1' and exclude '0'
+%        bin_size: size of the segmentation bin
 %
+%Ruben Pinzon@2015
+
 if length(keep_neurons)==1
     min_firing      = keep_neurons;
     firing_thr      = min_firing; % Minimum firing rate find which  neurons should be kept

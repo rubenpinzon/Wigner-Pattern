@@ -1,7 +1,27 @@
 function D = extract_laps(Fs,spk,speed,X,Y,events,isIntern, laps, TrialType)
-%EXTRACT LAP Takes the HC-5 database and divides into laps
+%EXTRACT LAP Takes the HC-5 database and divides the vectors into laps. more
+%            information about the database in
+%            crcns.org/files/data/hc-5/crcns-hc5-data-description.pdf
 %
-%Ruben Pinzon
+%            INPUTS:
+%            Fs: sampling frequency (Default: 1250)
+%            spk: spikes times
+%            speed: speed of the animal in during the whole experiment
+%            X:  position of the animal in the x-axis for the whole experiment
+%            Y:  position of the animal in the y-axis for the whole experiment
+%            events: vector containing the time start/end for each lap and section
+%                     in the maze
+%            isIntern: boolean vector indicating which neuron is interneuron
+%            laps: time of start and end of each lap
+%            TrialType: vector indicating the type of each laps options are
+%                   1: right alternation, 2: left alt., 3: wrong right alt.
+%                   4: wrong left alt.
+%
+%see also branch2, branch2_cleaned.m
+%
+%Ruben Pinzon@2015
+
+
 numLaps         = length(events);
 n_cells         = size(spk,2);
 n_pyrs          = sum(isIntern==0);

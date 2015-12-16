@@ -1,6 +1,8 @@
 function P = shufftime(P)
-%Function SHUFFTIME randomly permutes the bins in the variable y of
-%the input stucture.
+%SHUFFTIME auxiliary function to randomly permute the time samples/bins in the variable data of
+%           the input structure P.
+%
+%Ruben Pinzon 2015
 
 
 for lap = 1 : length(P)

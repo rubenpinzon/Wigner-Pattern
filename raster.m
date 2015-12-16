@@ -1,4 +1,8 @@
 function raster(X)
+%RASTER a simple function to plot a raster plot of spike trains in X.
+%
+%
+%Ruben Pinzon
 
 t_max = 0;
 color = jet(length(X));

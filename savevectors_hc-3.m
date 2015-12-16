@@ -1,4 +1,6 @@
-% extract spike times and cell numbers in txt file 
+% Script to convert the files in the HC-5/3 database to vectors in the format of Attila's software
+
+% extract spike times and cell numbers in txt file
 
 FileBase = '/media/bigdata/hc-3/ec013.15/ec013.157/ec013.157';
 

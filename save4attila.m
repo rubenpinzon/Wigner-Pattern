@@ -1,4 +1,14 @@
 function save4attila(data, name, str_format)
+%SAVE4ATTILA is a function to save a matlab variable into a file compatible with Attila's software format
+%
+%       INPUTS:
+%       data: matlab vector, matrix
+%       name: name of the file to save including extension.
+%       str_format: the format to save the data into the file following fprintf.
+%
+%see savevectors_hc-3.m for usage examples.
+%
+%Ruben Pinzon@2015
 
 [f c]=size(data);
 if c>f; data=data'; c=f; end;

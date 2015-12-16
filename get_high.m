@@ -1,7 +1,17 @@
 function D=get_high(data, MaxTimeE, trial, color, label, filterTrial)
-%function to create the data struct needed for DataHigh
-% data is a cell with dims: Laps x Cells
-% MaxTimeE is the desired length of the spike trians
+%GET_HIGH this function create the data struct needed for DataHigh library
+%         data: is a cell with dims: Laps x Cells
+%         MaxTimeE: is the desired length of the spike trials
+%         trial: is a vector indicating the condition of each trial
+%         color: a color vector same size as max(trial)
+%         label: a verbose option
+%         filterTrial: boolean to remove erroneous trials
+%
+%see for more information about the datahigh library datahigh.m or
+%http://users.ece.cmu.edu/~byronyu/software/DataHigh/datahigh.html
+%
+%
+%Ruben Pinzon @2015
 
 tic
 [laps, cells] = size(data);
@@ -38,6 +48,5 @@ else
         end
     end
 end
-
 
 fprintf('Done in %3.3f seconds\n', toc)

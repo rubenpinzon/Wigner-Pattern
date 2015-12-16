@@ -1,4 +1,6 @@
-% Choose a kernel (covariance function)  
+% Script to play with kernes and Gaussian Processes
+%Choose a kernel (covariance function)
+
 kernel = 3;
 switch kernel
     case 1;        k =@(x,y) 1*x'*y; % Linear      

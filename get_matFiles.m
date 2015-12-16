@@ -1,5 +1,13 @@
 function [files, names, roots] = get_matFiles(varargin)
-
+%GET_MATFILES search for math files in a given directory with a given pattern
+%           returns the names of the files, folders, and full paths
+%
+%          [files, names, roots] = get_matFiles('/','header_','.mat') search for all mat files
+%          recursively, inside the folder '/' that are contained in subfolders with prefix
+%          "header_"
+%
+%
+%Ruben Pinzon@2015
 
 basepath = varargin{1};
 if nargin == 1

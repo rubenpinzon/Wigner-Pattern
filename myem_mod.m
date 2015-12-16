@@ -1,4 +1,6 @@
 function [estParams, seq, LL, iterTime] = myem_mod(currentParams, seq, varargin)
+%A modified version of MYEM file in the DataHIGH library.
+%
 %
 % [estParams, seq, LL] = em(currentParams, seq, ...)
 %

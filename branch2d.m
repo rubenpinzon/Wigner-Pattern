@@ -372,15 +372,71 @@ load([roots{animal} '_proto_events.mat'])
 models      = {result_D_left result_D_right};
 colors      = hsv(2);
 name_field  = 'data';
-P_seg       = segment(P, 0.004, Fs, keep_cell, name_field); 
 n_folds     = 3;
 debug       = false;
+P_seg       = segment(P, 0.004, Fs, keep_cell, name_field); 
+n_proto     = length(P_seg);
+n_mods      = length(models);
 
 %Classification stats of P(proto_event|model) 
 stats       = classGPFA(P_seg, n_folds, debug, models);
-cm    = [stats.conf_matrix];
+cm          = [stats.conf_matrix];
 fprintf('ShitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
 save([roots{animal} '_confusionM_protoEvents.mat'],'stats')
+%%
+%=========================================================================%
+%=========    (6.5) Loglike changing binning         =====================%
+%=========================================================================%
+bin_size = 0.004:0.001:0.07;
+
+for ibin = 10:length(bin_size)
+   P_seg   = segment(P, bin_size(ibin), Fs, keep_cell, name_field); 
+   stats   = classGPFA(P_seg, n_folds, debug, models);
+   
+   datalike{ibin} = reshape([stats.likelihood],n_mods * n_folds, n_proto);   
+   
+   
+   cm          = [stats.conf_matrix];
+   fprintf('bin= %1.3f ave.T = %2.2f | hitA: %2.2f%%, hitB: %2.2f%%\n',bin_size(ibin),...
+       mean([P_seg.T]), 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
+   confmat{ibin} = cm;
+end
+
+figure(65), hold on
+for ibin = 1:length(bin_size)   
+    plot((ibin+0.5)*ones(n_folds,n_proto), datalike{ibin}(1:2:end,:),'.r')
+    plot(ibin*ones(n_folds,n_proto), datalike{ibin}(2:2:end,:),'ob')
+    drawnow
+end
+
+%=========================================================================%
+%=========    (6.6) Loglike changing tiem scale GP   =====================%
+%=========================================================================%
+scalingGP = linspace(0.01, 10, 200);
+P_seg   = segment(P, 0.01, Fs, keep_cell, name_field); 
+P_seg   = P_seg(1);
+n_proto = length(P_seg);
+colors  = jet(length(scalingGP));
+for isca = 1:length(scalingGP)
+   stats   = classGPFA(P_seg, n_folds, debug, models, scalingGP(isca));   
+   datalike{isca} = reshape([stats.likelihood],n_mods * n_folds, n_proto);
+   lv = stats.traj{1}.xsm(1,:);
+   plot3(1:numel(lv),scalingGP(isca)*ones(1,numel(lv)),lv,'color',colors(isca,:)), hold on  
+%    
+%    cm          = [stats.conf_matrix];
+%    fprintf('Scale= %1.3f | hitA: %2.2f%%, hitB: %2.2f%%\n',scalingGP(isca),...
+%        100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
+%    confmat{isca} = cm;
+    drawnow
+end
+
+figure(68), hold on
+for isca = 1:length(datalike)  
+    plot(scalingGP(isca), ((datalike{isca}(1,1))),'.r')
+    plot(scalingGP(isca), ((datalike{isca}(2,1))),'ob')
+    drawnow
+end
+
 %%
 %=========================================================================%
 %=========(7) Shuffle controls time and cell IDs     =====================%

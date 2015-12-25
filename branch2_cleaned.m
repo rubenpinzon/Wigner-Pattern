@@ -13,7 +13,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 7;
+animal          = 4;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -26,6 +26,7 @@ Y               = data.Track.Y;
 eeg             = data.Track.eeg;
 time            = linspace(0, length(eeg)/1250,length(eeg));
 speed           = data.Track.speed;
+wh_speed        = data.Laps.WhlSpeedCW;
 isIntern        = data.Clu.isIntern;
 numLaps         = length(events);
 [spk, spk_lap]  = get_spikes(clusters, data.Spike.res,laps);
@@ -35,13 +36,13 @@ TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 clear data
 %section in the maze to analyze
-in              = 'mid_arm';
-out             = 'lat_arm';
+in              = 'wheel';
+out             = 'wheel';
 debug           = true;
-namevar         = 'run';
+namevar         = 'wrun';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
-min_firing      = 1.5; %minimium firing rate
+min_firing      = 1.0; %minimium firing rate
 % GPFA trainign
 n_folds         = 2;
 zDim            = 10; %latent dimension
@@ -52,7 +53,7 @@ name_save_file  = '_trainedGPFA.mat';
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
 
-D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType);
+D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType, wh_speed);
 
 % ========================================================================%
 %==============  (2)  Extract Running Sections    ========================%
@@ -65,11 +66,12 @@ R = get_section(D, in, out, debug, namevar);
 %=========================================================================%
 
 [D,keep_neurons]    = segment(R, bin_size, Fs, min_firing, [namevar '_spike_train']);
+D                   = filter_laps(D);
 
+%%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
 %=========================================================================%
-
 M                 = trainGPFA(D, zDim, showpred, n_folds);
 model{1}          = M.params{1}; %one of the three folds
 data{1}           = D;  

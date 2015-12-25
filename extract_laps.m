@@ -1,4 +1,4 @@
-function D = extract_laps(Fs,spk,speed,X,Y,events,isIntern, laps, TrialType)
+function D = extract_laps(Fs,spk,speed,X,Y,events,isIntern, laps, TrialType, wh_speed)
 %EXTRACT LAP Takes the HC-5 database and divides the vectors into laps. more
 %            information about the database in
 %            crcns.org/files/data/hc-5/crcns-hc5-data-description.pdf
@@ -16,6 +16,9 @@ function D = extract_laps(Fs,spk,speed,X,Y,events,isIntern, laps, TrialType)
 %            TrialType: vector indicating the type of each laps options are
 %                   1: right alternation, 2: left alt., 3: wrong right alt.
 %                   4: wrong left alt.
+%
+%            wh_speed: speed of the runing wheel
+%
 %
 %see also branch2, branch2_cleaned.m
 %
@@ -37,6 +40,8 @@ for lap = 1:numLaps
     Y_lap        = Y(idx_lap(1):idx_lap(2));
     acc_dst      = cumsum(sqrt((X_lap - X_lap(1)).^2 + (Y_lap - Y_lap(1)).^2));
     speed_lap    = speed(idx_lap(1):idx_lap(2));
+    wh_speed_lap = wh_speed(idx_lap(1):idx_lap(2));
+
     
     t_lap        = idx_lap(2) - idx_lap(1) + 1;
     cnt          = 0;
@@ -66,6 +71,7 @@ for lap = 1:numLaps
     D(lap).X                  = X_lap;
     D(lap).Y                  = Y_lap;
     D(lap).speed              = speed_lap;
+    D(lap).wh_speed           = wh_speed_lap;
     D(lap).sections           = sections;
     D(lap).type               = TrialType(laps(lap));
     D(lap).color              = color(TrialType(laps(lap)),:);

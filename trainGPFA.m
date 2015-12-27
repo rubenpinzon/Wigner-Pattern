@@ -13,7 +13,8 @@ mse             = zeros(1,folds);
 like            = zeros(1,folds);
 like_tr         = cell(1,folds);
 paramsGPFA      = cell(1, folds);
-
+test_trials     = cell(1, folds);
+train_trials    = cell(1, folds);
 
 for ifold = 1 : folds  % two-fold cross-validation        
     % prepare masks:
@@ -24,6 +25,11 @@ for ifold = 1 : folds  % two-fold cross-validation
     train_mask = ~test_mask;
     train_data = D(train_mask);
     test_data  = D(test_mask);
+    
+    test_trials{ifold}  = find(test_mask);
+    train_trials{ifold} = find(train_mask);
+    
+    fprintf('training with trials %s\n',sprintf('%d, ',find(train_mask==1)))
     %training of the GPFA
     [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,zDim);
 
@@ -61,8 +67,8 @@ M.params      = paramsGPFA;
 M.mse         = mse;
 M.like_test   = like;
 M.like_train  = like_tr;
-M.cv_trials   = cv_trials;
-M.foldidx     = fold_indx;
+M.testTrials  = test_trials;
+M.trainTrials = train_trials;
 
 clear result params* mse like
 

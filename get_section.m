@@ -1,4 +1,4 @@
-function D = get_section(D, in, out, debug, name)
+function R = get_section(D, in, out, debug, name)
 %GET_SECTION add a new field to the struct D with the firing rate of the
 %cells in a section specifie by in, out. D is generated from extract_laps.m
 %
@@ -43,7 +43,6 @@ for lap = 1:numLaps
         wheelNonZero    = find(D(lap).wh_speed~=0);
         if isempty(wheelNonZero)
             fprintf('Skipped lap %d without wheel run\n',lap)
-            D(lap) = [];
             return
         end
         idx_lap         = [wheelNonZero(1), wheelNonZero(end)];
@@ -56,7 +55,7 @@ for lap = 1:numLaps
     speed_lap    = D(lap).speed(idx_lap(1):idx_lap(2));
 
     t_lap        = idx_lap(2) - idx_lap(1) + 1;
-    firing       = D(lap).firing_rate(:,idx_lap(1):idx_lap(2)); 
+    %firing       = D(lap).firing_rate(:,idx_lap(1):idx_lap(2)); 
     spk_train    = D(lap).spike_train(:,idx_lap(1):idx_lap(2)); 
 
     if debug
@@ -82,10 +81,11 @@ for lap = 1:numLaps
     end              
 
     %Type of trial
-    eval(['D(lap).' name '_firing=firing;'])
-    eval(['D(lap).' name '_spike_train=spk_train;'])
-    eval(['D(lap).' name '_interval=idx_lap;'])
-    eval(['D(lap).' name '_speed=speed_lap;'])
-       
-
+    %eval(['R(lap).' name '_firing=firing;'])
+    R(lap).trialId = D(lap).trialId;   
+    R(lap).type    = D(lap).type; 
+    eval(['R(lap).' name '_spike_train=spk_train;'])
+    eval(['R(lap).' name '_interval=idx_lap;'])
+    eval(['R(lap).' name '_speed=speed_lap;'])
+    
 end

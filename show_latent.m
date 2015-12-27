@@ -10,13 +10,13 @@ function Xorth = show_latent(model, data)
 %Ruben Pinzon@2015
 
 
-n_models = length(model);
+n_models = length(model.params);
 
-
+colors   = hsv(length(data));
 for m = 1 : n_models    
-    
-    traj     = exactInferenceWithLL(data{m}, model{m},'getLL',0);
-    x        = orthogonalize([traj.xsm], model{m}.C);     
+    Params   = model.params{m};
+    traj     = exactInferenceWithLL(data, Params,'getLL',0);
+    x        = orthogonalize([traj.xsm], Params.C);     
     
     Xorth{m} = x;
     
@@ -28,7 +28,13 @@ for m = 1 : n_models
     start_traj  = []; end_traj = [];
     for ilap = 1 : length(traj)
        lap_t = T(ilap)+1:T(ilap+1);
-       c     = traj(ilap).color; %color of the lap
+       
+       try 
+        c     = traj(ilap).epochColors; %color of the lap
+       catch
+        c     = colors(ilap,:);   
+       end
+       
        plot_xorth(x(1,lap_t),x(2,lap_t),x(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},c,num2str(traj(ilap).trialId))           
        plot_xorth(x(1,lap_t),x(2,lap_t),[],3,{'X_1','X_2'},c)
        plot_xorth(x(2,lap_t),x(3,lap_t),[],6,{'X_2','X_3'},c)

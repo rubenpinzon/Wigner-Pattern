@@ -51,11 +51,26 @@ startParams.eps   = startEps * ones(1, dims);
 % Initialize observation model parameters
 % ========================================
 yAll             = [D.y];
-[faParams, faLL] = fastfa(yAll, dims);
+try
+    [faParams, faLL] = fastfa(yAll, dims);
+    startParams.d = mean(yAll, 2);
+    startParams.C = faParams.L;
+    startParams.R = diag(faParams.Ph);
+catch
+    d  = mean(yAll, 2);
+    Y0 = yAll - repmat(d, 1, size(yAll,2));
+    Q = cov(Y0');
+    [C, Lambda] = eigs(Q, dims);
+    fprintf('Initializing GPFA parameters with PCA\n');
+    R = diag(diag(Q - C * Lambda * C'));
+    
+    startParams.d = d;
+    startParams.C = C;
+    startParams.R = R;
+    disp('Succeded');
+end
 
-startParams.d = mean(yAll, 2);
-startParams.C = faParams.L;
-startParams.R = diag(faParams.Ph);
+
 
 % Define parameter constraints
 startParams.notes.learnKernelParams = true;

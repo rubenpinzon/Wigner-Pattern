@@ -125,17 +125,17 @@ for lap = 1:n_laps
     per_stop    = [moved(1:length(stoped)) stoped];
     %select those stoppig periods larger than 1s
     winners     = find(per_stop(:,2)-per_stop(:,1) > 1.0*Fs);
-    if debug
-        for w = 1:length(winners)
-            idx = [per_stop(winners(w),1) per_stop(winners(w),2)] + idx_stop(1);
-            plot(per_stop(winners(w),1):per_stop(winners(w),2),...
-                speed(idx(1):idx(2))./norm_speed,'k','linewidth',2)
-        end
-    end
+    
     
     
     for w = 1:length(winners)
-        idx_stop    = [per_stop(winners(w),1) per_stop(winners(w),2)] + idx_stop(1); 
+        idx_proto    = [per_stop(winners(w),1) per_stop(winners(w),2)] + idx_stop(1); 
+        
+        if debug
+            plot(per_stop(winners(w),1):per_stop(winners(w),2),...
+            speed(idx_proto(1):idx_proto(2))./norm_speed,'k','linewidth',2)        
+        end
+        
         
         %spikes
         n_spks_stop  = zeros(1,n_pyr);
@@ -147,10 +147,10 @@ for lap = 1:n_laps
         for n=1:n_pyr
             neu = stable_pfields(n);
 
-            t_stop = spk_lap{lap,neu}>=idx_stop(1) & spk_lap{lap,neu}<=idx_stop(2);
+            t_stop = spk_lap{lap,neu}>=idx_proto(1) & spk_lap{lap,neu}<=idx_proto(2);
             %aligned to the start of the section
             n_spks_stop(n) = sum(t_stop);
-            t_spks_stop{n} = spk_lap{lap,neu}(t_stop) - idx_stop(1) + 1;
+            t_spks_stop{n} = spk_lap{lap,neu}(t_stop) - idx_proto(1) + 1;
             all_spks(end+1:end + n_spks_stop(n))    = t_spks_stop{n};
             all_spks_id(end+1:end + n_spks_stop(n)) = n;
 
@@ -174,17 +174,17 @@ for lap = 1:n_laps
             S(cnt).TrialId     = lap;
             S(cnt).TrialType   = typetrial{data.Laps.TrialType(laps(lap))};
             S(cnt).TrialTypeNo = data.Laps.TrialType(laps(lap));
-            S(cnt).Interval    = idx_stop;
+            S(cnt).Interval    = idx_proto;
             S(cnt).Dur_stop    = sum(per_stop(winners(w),:));
             S(cnt).Dur_run     = idx_run(end) - idx_run(1);
             S(cnt).Delay       = -per_stop(w,2);
-            S(cnt).speed_stop  = speed(idx_stop(1):idx_stop(2));
+            S(cnt).speed_stop  = speed(idx_proto(1):idx_proto(2));
             S(cnt).speed_run   = speed(idx_run(1):idx_run(2));
             S(cnt).all_spks_stop = [all_spks; all_spks_id];
             S(cnt).inlap_pos   = [per_stop(winners(w),1) per_stop(winners(w),2)];
             cnt                = cnt + 1;
         end
-        clear t_* n_sp* all*
+        clear t_r* t_s* n_sp* all*
     end    
     drawnow
 end
@@ -320,13 +320,10 @@ for seq = 1 : length(S)
 
         %at least 30% of cells active in proto event to be consider event
         clear proto_int len_proto 
-%         text(sum(xlim)/4,1,sprintf('Silent periods >=%2.1f ms',1000*t_window/Fs))
-%         text(sum(xlim)/2,1,'Events (>30% cells active)','color','r')
-%         text(3*sum(xlim)/4,1,'Proto Events (<30% cells active)','color','m')
         drawnow
     end
 end
-save([roots{animal} '_proto_events.mat'],'P','S')
+save([roots{animal} '_proto_events_v2.mat'],'P','S')
 
 %% 
 %========================================================================%
@@ -341,19 +338,19 @@ if show_run_stop
        seq_r    = unique_tr(seq); 
        n_events = sum(t_ids == unique_tr(seq));
        figure(seq)
-       set(gcf, 'position', [2000 500 1000 500], 'color', 'w'), hold on
+       set(gcf, 'position', [2000 500 1500 500], 'color', 'w'), hold on
 
        %theta
        subplot(1,2 + n_events,[1 2]), hold on
        ele   = find(t_ids==seq_r,1);
-       raster(S(ele).spks_run)
-       plot(S(ele).speed_run./10,'r')
-       xlabel(sprintf('Running period lap %d::%s',seq_r,S(ele).TrialType))
+       raster(S(seq).spks_run)
+       plot(S(seq).speed_run./10,'r')
+       xlabel(sprintf('Running period lap %d::%s',seq_r,S(seq).TrialType))
        %events
        for n = 1 : n_events
           subplot(1,2 + n_events,2+n), hold on
           raster(P(ele+n-1).spk_raw)
-          xlabel('Stopping period')
+          xlabel('stop. per.')
        end
        drawnow 
     end
@@ -367,7 +364,7 @@ end
 %=========================================================================%
 
 load([roots{animal} '_branch2_results40ms.mat'])
-load([roots{animal} '_proto_events.mat'])
+load([roots{animal} '_proto_events_v2.mat'])
 
 models      = {result_D_left result_D_right};
 colors      = hsv(2);
@@ -381,7 +378,7 @@ n_mods      = length(models);
 %Classification stats of P(proto_event|model) 
 stats       = classGPFA(P_seg, n_folds, debug, models);
 cm          = [stats.conf_matrix];
-fprintf('ShitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
+fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
 save([roots{animal} '_confusionM_protoEvents.mat'],'stats')
 %%
 %=========================================================================%
@@ -389,8 +386,8 @@ save([roots{animal} '_confusionM_protoEvents.mat'],'stats')
 %=========================================================================%
 bin_size = 0.004:0.001:0.07;
 
-for ibin = 10:length(bin_size)
-   P_seg   = segment(P, bin_size(ibin), Fs, keep_cell, name_field); 
+for ibin = 1:length(bin_size)
+   P_seg   = segment(P(1), bin_size(ibin), Fs, keep_cell, name_field); 
    stats   = classGPFA(P_seg, n_folds, debug, models);
    
    datalike{ibin} = reshape([stats.likelihood],n_mods * n_folds, n_proto);   
@@ -404,23 +401,23 @@ end
 
 figure(65), hold on
 for ibin = 1:length(bin_size)   
-    plot((ibin+0.5)*ones(n_folds,n_proto), datalike{ibin}(1:2:end,:),'.r')
-    plot(ibin*ones(n_folds,n_proto), datalike{ibin}(2:2:end,:),'ob')
+    plot(bin_size(ibin)*ones(n_folds,n_proto), datalike{ibin}(1:2:end,:),'.r')
+    plot(bin_size(ibin)*ones(n_folds,n_proto), datalike{ibin}(2:2:end,:),'ob')
     drawnow
 end
 
 %=========================================================================%
 %=========    (6.6) Loglike changing tiem scale GP   =====================%
 %=========================================================================%
-scalingGP = linspace(0.01, 10, 200);
-P_seg   = segment(P, 0.01, Fs, keep_cell, name_field); 
-P_seg   = P_seg(1);
-n_proto = length(P_seg);
-colors  = jet(length(scalingGP));
+scalingGP   = linspace(0.01, 5, 200);
+P_seg       = segment(P, 0.01, Fs, keep_cell, name_field); 
+P_seg       = P_seg(6);
+n_proto     = length(P_seg);
+colors      = jet(length(scalingGP));
 for isca = 1:length(scalingGP)
    stats   = classGPFA(P_seg, n_folds, debug, models, scalingGP(isca));   
    datalike{isca} = reshape([stats.likelihood],n_mods * n_folds, n_proto);
-   lv = stats.traj{1}.xsm(1,:);
+   lv = stats(1).traj{1}.xsm(1,:);
    plot3(1:numel(lv),scalingGP(isca)*ones(1,numel(lv)),lv,'color',colors(isca,:)), hold on  
 %    
 %    cm          = [stats.conf_matrix];

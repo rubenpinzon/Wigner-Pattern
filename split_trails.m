@@ -11,6 +11,7 @@ function [D_left, D_right] = split_trails(D)
 typetrial       = {'left', 'right', 'errorLeft', 'errorRight'};
 
 if isfield(D, 'condition')
+    %for backwards compatibility
     disp('Condition field found. Splitting with vesion 1.0 of function.')
 
     D_left = struct('data',[],'condition','','epochColors',[],'trialId',[],'y',[],'T',[]);
@@ -26,10 +27,12 @@ if isfield(D, 'condition')
     D_left(1) = [];
     D_right(1) = [];
 else
+    
    types = [D.type];
    D_left  = D(types==1);
    D_right = D(types==2);
    
+   %add colors and name of the trial
    for d = 1 : length(D_left)       
       D_left(d).condition = typetrial{1};
       D_left(d).epochColors = [1 0 0];

@@ -1,4 +1,4 @@
-function D = extract_laps(Fs,spk,speed,X,Y,events,isIntern, laps, TrialType, wh_speed)
+function D = extract_laps(Fs,spk,speed,X,Y,events,isIntern,laps,TrialType,wh_speed)
 %EXTRACT LAP Takes the HC-5 database and divides the vectors into laps. more
 %            information about the database in
 %            crcns.org/files/data/hc-5/crcns-hc5-data-description.pdf
@@ -21,7 +21,8 @@ function D = extract_laps(Fs,spk,speed,X,Y,events,isIntern, laps, TrialType, wh_
 %
 %
 %see also branch2, branch2_cleaned.m
-%
+%Revision:  Dec27: disabled the computation of firing rate to save space in
+%                  disk since it is not used.
 %Ruben Pinzon@2015
 
 
@@ -45,7 +46,7 @@ for lap = 1:numLaps
     
     t_lap        = idx_lap(2) - idx_lap(1) + 1;
     cnt          = 0;
-    firing       = zeros(n_pyrs, t_lap); 
+    %firing       = zeros(n_pyrs, t_lap); 
     spk_train    = zeros(n_pyrs, t_lap);
     for neu=1:n_cells
         if ~isIntern(neu)
@@ -56,8 +57,8 @@ for lap = 1:numLaps
             %aligned to the start of the section            
             spikes_lap{cnt}      = spk{lap,neu}(idx) - idx_lap(1) + 1;
             tmp(spikes_lap{cnt}) = 1; 
-            %convolve the spike trains with a gauss filter 100 ms
-            firing(cnt,:)    = Fs*conv(tmp,kernel, 'same');
+            %convolve the spike trains with a gauss filter 100 m
+            %firing(cnt,:)    = Fs*conv(tmp,kernel, 'same');
             spk_train(cnt, :) = tmp; 
         end
     end        
@@ -76,10 +77,10 @@ for lap = 1:numLaps
     D(lap).type               = TrialType(laps(lap));
     D(lap).color              = color(TrialType(laps(lap)),:);
     D(lap).acc_dist           = acc_dst;
-    D(lap).firing_rate        = firing;
+    %D(lap).firing_rate        = firing;
     D(lap).spike_train        = spk_train;
     D(lap).duration           = idx_lap(2) - idx_lap(1);
-    D(lap).t_experiment       = events{1}(1,1);
+    D(lap).start              = events{1}(1,1);
     clear spikes *_lap tmp
 end    
 

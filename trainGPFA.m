@@ -26,8 +26,8 @@ for ifold = 1 : folds  % two-fold cross-validation
     train_data = D(train_mask);
     test_data  = D(test_mask);
     
-    test_trials{ifold}  = find(test_mask);
-    train_trials{ifold} = find(train_mask);
+    test_trials{ifold}  = [train_data.trialId];
+    train_trials{ifold} = [test_data.trialId];
     
     fprintf('training with trials %s\n',sprintf('%d, ',find(train_mask==1)))
     %training of the GPFA
@@ -59,6 +59,7 @@ for ifold = 1 : folds  % two-fold cross-validation
     like(ifold)         = ll_te;
     like_tr{ifold}      = ll_tr;
     paramsGPFA{ifold}   = params;
+    
     fprintf('Trained/validated fold %d\n',ifold)
     clear train_data test_data cvdata cv_gpfa* params
 end
@@ -69,6 +70,8 @@ M.like_test   = like;
 M.like_train  = like_tr;
 M.testTrials  = test_trials;
 M.trainTrials = train_trials;
+
+
 
 clear result params* mse like
 

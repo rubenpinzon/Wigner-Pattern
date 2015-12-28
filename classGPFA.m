@@ -1,4 +1,4 @@
-function stats = classGPFA(P, debug, models, varargin)
+function Xtats = classGPFA(P, models, varargin)
 %CLASSGPFA  Given a data struct P containing spike count vectors and GPFA models, this file computes a
 %           binary classification as the argmax P(data|each_model).
 %
@@ -19,7 +19,6 @@ function stats = classGPFA(P, debug, models, varargin)
 %
 %Version 1.0 Ruben Pinzon@2015
 folds = length(models{1}.params);
-colors = hsv(length(P));
 scale = false;
 if nargin>4
    scaleK = varargin{1}; 
@@ -28,62 +27,54 @@ if nargin>4
    fprintf('Scaling the GP Kernel with %2.2f\n',scaleK)
 end
 
-for ifold = 1 : folds
-    likelikehood   = zeros(length(models), length(P));
-    proto_traj  = cell(length(models), length(P));
+n_laps      = length(P);
+v_laps      = [P.trialId];
+model_like  = zeros(length(models), n_laps);
+    
+for m = 1 : length(models)
+    likelikehood   = -Inf*ones(folds, n_laps);
 
-
-    for p = 1 : length(P) 
-        for m = 1 : length(models)
+    for ifold = 1 : folds
+        usedlaps    = models{m}.trainTrials{ifold};
+        unseenP     = ones(1,n_laps);
+        for u = 1 : length(usedlaps)
+            u_idx = find(v_laps == usedlaps(u));
+            unseenP(u_idx) = 0;
+        end
+        unseenP = find(unseenP ==1);
+        for p = 1 : length(unseenP) 
+        
             %select the model parameters from the fold#1 
             model = models{m}.params{ifold};
-            
+            lap   = unseenP(p);
             %rescale time scale of the GP if needed.
             if scale
                model.gamma = model.gamma * scaleK;
             end
             
-            [traj, ll] = exactInferenceWithLL(P(p), model,'getLL',1);        
-            likelikehood(m,p) = ll;
-            proto_traj{m,p} = traj;      
+            [traj, ll] = exactInferenceWithLL(P(lap), model,'getLL',1);        
+            likelikehood(ifold,lap) = ll;                  
 
         end       
-
-        [~, max_mod]  = max(likelikehood(:,p));
-        loglike_p(p)  = likelikehood(max_mod, p);        
-
-        if debug    
-            %get joint neural space
-            model = models{m}.params{ifold};
-            traj  = exactInferenceWithLL(P(p), model,'getLL',0);
-            figure(ifold)
-            Xorth = orthogonalize([traj.xsm], model.C);
-            plot3(Xorth(1,:),Xorth(2,:),Xorth(3,:),'color',colors(max_mod,:)), hold on
-            plot3(Xorth(1,1),Xorth(2,1),Xorth(3,1),'color',...
-                colors(max_mod,:),'markerfacecolor',colors(max_mod,:),'marker','s')
-            plot3(Xorth(1,end),Xorth(2,end),Xorth(3,end),'color',...
-                colors(max_mod,:),'markerfacecolor',colors(max_mod,:),'marker','o')
-            drawnow
-            fprintf('Observation %d\n',p);
-
-        end
+        %remove trials used during training
     end
-
-    %max log like P(event|model)
-    [val, best_mod]  = max(likelikehood);
-    type            = [P.type]; %{P(proto|model) , realtag}
-
-
-    TP            = sum(best_mod == 1 & type == 1)/(sum(type == 1));
-    FN            = sum(best_mod == 2 & type == 2)/(sum(type == 2));
-    FP            = sum(best_mod == 1 & type == 2)/(sum(type == 2));
-    TN            = sum(best_mod == 2 & type == 1)/(sum(type == 1));
     
-    stats(ifold).conf_matrix    = [TP, FP; TN, FN];
-    stats(ifold).class_output   = best_mod;
-    stats(ifold).real_label     = type;
-    stats(ifold).likelihood     = likelikehood;
-    stats(ifold).traj           = proto_traj;
-
-    %fprintf('Fold %d done\n',ifold)
+    model_like(m,:) = max(likelikehood);
 end
+
+[~, max_mod]    = max(model_like);
+
+type            = [P.type]; %{P(proto|model) , realtag}
+
+
+TP            = sum(max_mod == 1 & type == 1)/(sum(type == 1));
+FN            = sum(max_mod == 2 & type == 2)/(sum(type == 2));
+FP            = sum(max_mod == 1 & type == 2)/(sum(type == 2));
+TN            = sum(max_mod == 2 & type == 1)/(sum(type == 1));
+
+Xtats.conf_matrix    = [TP, FP; TN, FN];
+Xtats.class_output   = max_mod;
+Xtats.real_label     = type;
+Xtats.likelihood     = model_like;
+
+%fprintf('Fold %d done\n',ifold)

@@ -79,20 +79,15 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
 W                   = filter_laps(W);
-%=========================================================================%
-%=============== save 10 laps for validation  ============================%
-%=========================================================================%
-Wt     = W(1:end-10);     %training set
-Wv     = W(end-9:end);    %validation set
 
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
 %=========================================================================%
-M                 = trainGPFA(Wt, zDim, showpred, n_folds);
+M                 = trainGPFA(W, zDim, showpred, n_folds);
 
 if train_split
-    [W_left, W_right] = split_trails(Wt);
+    [W_left, W_right] = split_trails(W);
     M_left            = trainGPFA(W_left, zDim, showpred, n_folds);
     M_right           = trainGPFA(W_right, zDim, showpred, n_folds);
 end
@@ -120,23 +115,27 @@ load([roots{animal} name_save_file])
 
 %Classification stats of P(proto_event|model) 
 models      = {M_left, M_right};
-Xtats       = classGPFA(Wv, debug, models);
+Xtats       = classGPFA(W, models);
 cm          = [Xtats.conf_matrix];
-fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,1)),...
-        100*mean(cm(2,2)))
+fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 
-plot(Xtats.likelihood','o')
-xlabel('Trials'), xlim([0 length(W)+1]), ylim([-5600 -4000])
+plot(Xtats.likelihood','-o')
+xlabel('Trials'), xlim([0 length(W)+1]), 
 ylabel('LogLikelihood')
 for t = 1 : length(W)
   typeAssigned = '2';
-  if stats(f).likelihood(1,t) > stats(f).likelihood(2,t)
+  
+  if Xtats.likelihood(1,t) > Xtats.likelihood(2,t)
      typeAssigned = '1'; 
   end
-  text(t, -5500, typeAssigned)
+  c = 'r';
+  if Xtats.class_output(t) == Xtats.real_label(t)
+      c = 'k';
+  end
+  text(t, -8700, typeAssigned, 'color',c)
+  line([t+0.5 t+0.5],ylim,'linestyle','--','color',[0.6 0.6 0.6])
 end
 
-title('P(wheel(T=3s) | wheel models)')
 
      

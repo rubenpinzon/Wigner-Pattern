@@ -50,7 +50,7 @@ showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
 name_save_file  = '_trainedGPFA_wheel.mat';
 test_lap        = 10;
-maxTime         = 5; %maximum segmentation time
+maxTime         = 3; %maximum segmentation time
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -79,7 +79,7 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
 W                   = filter_laps(W);
-
+W                   = W(randperm(length(W)));
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
@@ -136,6 +136,6 @@ for t = 1 : length(W)
   text(t, -8700, typeAssigned, 'color',c)
   line([t+0.5 t+0.5],ylim,'linestyle','--','color',[0.6 0.6 0.6])
 end
-
+set(gca,'xticklabel',[W.trialId])
 
      

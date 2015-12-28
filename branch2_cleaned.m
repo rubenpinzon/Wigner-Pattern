@@ -44,7 +44,7 @@ namevar         = 'wheel';
 bin_size        = 0.04; %ms
 min_firing      = 1.0; %minimium firing rate
 % GPFA trainign
-n_folds         = 3;
+n_folds         = 2;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
@@ -78,20 +78,25 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
-W                   = filterlaps(W);
+W                   = filter_laps(W);
+%=========================================================================%
+%=============== save 10 laps for validation  ============================%
+%=========================================================================%
+Wt     = W(1:end-10);     %training set
+Wv     = W(end-9:end);    %validation set
+
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
 %=========================================================================%
-M                 = trainGPFA(W, zDim, showpred, n_folds);
+M                 = trainGPFA(Wt, zDim, showpred, n_folds);
 
 if train_split
-    [W_left, W_right] = split_trails(W);
+    [W_left, W_right] = split_trails(Wt);
     M_left            = trainGPFA(W_left, zDim, showpred, n_folds);
     M_right           = trainGPFA(W_right, zDim, showpred, n_folds);
 end
-%#TODO there is a problem with the crossvalidation when one of the folds 
-%includes trials with too few spikes.
+
 %%
 % ========================================================================%
 %============== (5)    Show Neural Trajectories   ========================%
@@ -109,17 +114,13 @@ save([roots{animal} name_save_file],'M','M_left','M_right','W')
 %=========(7) Compute loglike P(wheel|model_wheel)   =====================%
 %=========================================================================%
 
-%#TODO: during the classification all the P-trails should be evaluated with
-%models that did not include the same trial in the training. W and M is not
-%a problem because the trials coincide with the cv_trial vector. W_left and
-%W_right on the contrary losses the trialId during the training so that 
-%cv_trial is not informative.
+
 
 load([roots{animal} name_save_file])
 
 %Classification stats of P(proto_event|model) 
 models      = {M_left, M_right};
-Xtats       = classGPFA(W, debug, models);
+Xtats       = classGPFA(Wv, debug, models);
 cm          = [Xtats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,1)),...
         100*mean(cm(2,2)))

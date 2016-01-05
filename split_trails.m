@@ -29,10 +29,10 @@ if isfield(D, 'condition')
 else
     
    types = [D.type];
-   D_left  = D(types==1);
-   D_right = D(types==2);
+   D_left  = D(types==1 | types == 4);
+   D_right = D(types==2 | types == 3);
    
-   %add colors and name of the trial
+   %add colors and name of th e trial
    for d = 1 : length(D_left)       
       D_left(d).condition = typetrial{1};
       D_left(d).epochColors = [1 0 0];

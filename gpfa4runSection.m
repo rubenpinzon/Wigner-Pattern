@@ -42,7 +42,7 @@ debug           = true;
 namevar         = 'wheel';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
-min_firing      = 1.0; %minimium firing rate
+min_firing      = 0.8; %minimium firing rate
 % GPFA trainign
 n_folds         = 3;
 zDim            = 10; %latent dimension
@@ -68,7 +68,7 @@ plot(90.*D(test_lap).wh_speed./max(D(test_lap).wh_speed),'r')
 %==============  (2)  Extract Running Sections    ========================%
 %=========================================================================%
 
-R = get_section(D, in, out, debug, namevar); %lap#1: sensor errors 
+S = get_section(D, in, out, debug, namevar); %lap#1: sensor errors 
 
 % ========================================================================%
 %============== (3) Segment the spike vectors     ========================%
@@ -76,19 +76,19 @@ R = get_section(D, in, out, debug, namevar); %lap#1: sensor errors
 %load run model and keep the same neurons
 % run = load([roots{animal} '_branch2_results40ms.mat']);
 
-[W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
+[R,keep_neurons]    = segment(S, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
-W                   = filter_laps(W);
+R                   = filter_laps(R);
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
 %=========================================================================%
-M                 = trainGPFA(W, zDim, showpred, n_folds);
+M                 = trainGPFA(R, zDim, showpred, n_folds);
 
 if train_split
-    [W_left, W_right] = split_trails(W);
-    M_left            = trainGPFA(W_left, zDim, showpred, n_folds);
-    M_right           = trainGPFA(W_right, zDim, showpred, n_folds);
+    [R_left, R_right] = split_trails(R);
+    M_left            = trainGPFA(R_left, zDim, showpred, n_folds);
+    M_right           = trainGPFA(R_right, zDim, showpred, n_folds);
 end
 
 %%
@@ -96,7 +96,7 @@ end
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
 
-Xorth = show_latent(M_right, W_right);
+Xorth = show_latent(M_right, R_right);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%
@@ -109,9 +109,9 @@ save([roots{animal} name_save_file],'M','M_left','M_right','W')
 %=========================================================================%
 figure(7)
 set(gcf,'position',[100 100 500*1.62 500],'color','w')
-plot(mean([W_left.y],2),'r','displayname','wheel after left')
+plot(mean([R_left.y],2),'r','displayname','wheel after left')
 hold on
-plot(mean([W_right.y],2),'b','displayname','wheel after right')
+plot(mean([R_right.y],2),'b','displayname','wheel after right')
 ylabel('Average firing rate')
 xlabel('Cell No.')
 set(gca,'fontsize',14)

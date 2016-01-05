@@ -120,7 +120,7 @@ savefig()
 %=========================================================================%
 %=========(8) Compute loglike P(wheel|model_wheel)   =====================%
 %=========================================================================%
-
+%%
 load([roots{animal} name_save_file])
 
 %Classification stats of P(proto_event|model) 
@@ -129,11 +129,11 @@ Xtats       = classGPFA(W, models);
 cm          = [Xtats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
-%show likelihood given the models
+% plot show likelihood given the models
 plot(Xtats.likelihood','-o')
 xlabel('Trials'), xlim([0 length(W)+1]), 
 ylabel('LogLikelihood')
-for t = 1 : length(W)
+for t = 1 : length(Xtats.likelihood)
   typeAssigned = '2';
   
   if Xtats.likelihood(1,t) > Xtats.likelihood(2,t)
@@ -148,4 +148,12 @@ for t = 1 : length(W)
 end
 set(gca,'xticklabel',[W.trialId])
 
-     
+%XY plot
+label.title = 'Classification with Fisher Disc. Wheel data';
+label.modelA = 'Wheel after rigth alt.';
+label.modelB = 'Wheel after left alt.';
+label.xaxis = 'P(trial_j|model right)';
+label.yaxis = 'P(trial_j|model left)';
+LDAclass(Xtats, label)
+
+

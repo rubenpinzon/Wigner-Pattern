@@ -56,7 +56,7 @@ try
     startParams.d = mean(yAll, 2);
     startParams.C = faParams.L;
     startParams.R = diag(faParams.Ph);
-catch
+catch    
     d  = mean(yAll, 2);
     Y0 = yAll - repmat(d, 1, size(yAll,2));
     Q = cov(Y0');

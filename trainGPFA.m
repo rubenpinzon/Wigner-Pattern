@@ -29,7 +29,7 @@ for ifold = 1 : folds  % two-fold cross-validation
     test_trials{ifold}  = [train_data.trialId];
     train_trials{ifold} = [test_data.trialId];
     
-    fprintf('training with trials %s\n',sprintf('%d, ',find(train_mask==1)))
+    fprintf('training with trials %s\n',sprintf('%d, ',train_trials{ifold}))
     %training of the GPFA
     [params, gpfa_traj, ll_tr] = gpfa_mod(train_data,zDim);
 

@@ -1,5 +1,5 @@
 %BRANCH2_CLEANED This script contains a modularized version of the analysis
-%        included in the script branch2.m, that process the HC-5 database.
+%        included in the script branch2d.m, that process the HC-5 database.
 %
 %        DESCRIPTION: This script carried out most of the analysis in the files
 %        branch2.m using functions. See branch2.m for further details.
@@ -36,21 +36,21 @@ TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 clear data
 %section in the maze to analyze
-in              = 'wheel';
-out             = 'wheel';
+in              = 'mid_arm';
+out             = 'lat_arm';
 debug           = true;
 namevar         = 'wheel';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
 min_firing      = 1.0; %minimium firing rate
 % GPFA trainign
-n_folds         = 2;
+n_folds         = 3;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
-name_save_file  = '_trainedGPFA_wheel.mat';
+name_save_file  = '_trainedGPFA_run.mat';
 test_lap        = 10;
-maxTime         = 3; %maximum segmentation time
+maxTime         = 0; %maximum segmentation time 0 if use all
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -58,7 +58,7 @@ maxTime         = 3; %maximum segmentation time
 D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType,...
                  wh_speed);
 
-%show raster
+%show one lap for debug purposes 
 figure(test_lap)
 raster(D(test_lap).spikes), hold on
 plot(90.*D(test_lap).speed./max(D(test_lap).speed),'k')
@@ -68,7 +68,7 @@ plot(90.*D(test_lap).wh_speed./max(D(test_lap).wh_speed),'r')
 %==============  (2)  Extract Running Sections    ========================%
 %=========================================================================%
 
-R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors 
+R = get_section(D, in, out, debug, namevar); %lap#1: sensor errors 
 
 % ========================================================================%
 %============== (3) Segment the spike vectors     ========================%
@@ -79,7 +79,6 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
 W                   = filter_laps(W);
-W                   = W(randperm(length(W)));
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%

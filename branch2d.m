@@ -371,7 +371,7 @@ colors      = hsv(2);
 name_field  = 'data';
 n_folds     = 3;
 debug       = false;
-P_seg       = segment(P, 0.004, Fs, keep_cell, name_field); 
+P_seg       = segment(P, 0.004, Fs, keep_cell, name_field, 0); 
 n_proto     = length(P_seg);
 n_mods      = length(models);
 

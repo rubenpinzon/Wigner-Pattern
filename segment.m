@@ -61,7 +61,11 @@ for ilap = 1 : length(Temp)
     end
     
     F(ilap).trialId = D(ilap).trialId;
-    F(ilap).type    = D(ilap).type;
+    if isfield(D, 'type')
+        F(ilap).type    = D(ilap).type;
+    else
+        F(ilap).type    = D(ilap).trialType;
+    end
     F(ilap).y       = seq.y;        
     F(ilap).T       = T;    
     

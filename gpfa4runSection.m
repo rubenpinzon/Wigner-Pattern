@@ -43,8 +43,9 @@ namevar         = 'wheel';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
 min_firing      = 0.8; %minimium firing rate
+filterTrails    = false; % filter trails with irregular speed/spike count?
 % GPFA trainign
-n_folds         = 3;
+n_folds         = 2;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
@@ -78,7 +79,6 @@ S = get_section(D, in, out, debug, namevar); %lap#1: sensor errors
 
 [R,keep_neurons]    = segment(S, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
-R                   = filter_laps(R);
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
@@ -87,6 +87,11 @@ M                 = trainGPFA(R, zDim, showpred, n_folds);
 
 if train_split
     [R_left, R_right] = split_trails(R);
+    if filterTrails
+        R_left            = filter_laps(R_left);
+        R_right           = filter_laps(R_right);
+    end
+
     M_left            = trainGPFA(R_left, zDim, showpred, n_folds);
     M_right           = trainGPFA(R_right, zDim, showpred, n_folds);
 end

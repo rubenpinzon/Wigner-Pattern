@@ -16,10 +16,11 @@ gridX = gridX(:);
 gridY = gridY(:);
 
 
-group       = Xtats.class_output';
+group       = Xtats.real_label';
 training    = Xtats.likelihood';
 sample      = [gridX gridY];
 [C,err,P,logp,coeff] = classify(sample,training,group,'linear');
+fprintf('Classification error with LDA =%f\n',err)
 
 figure,hold on
 set(gcf, 'color','w')

@@ -15,6 +15,6 @@ mu = mean(cnt_total);
 sd = std(cnt_total);
 
 f_out = cnt_total < (mu-sd); 
-fprintf('%d trials filter out: [%s]\n', sum(f_out), sprintf('%d ',find(f_out==1)))
+fprintf('%d trials filter out: [%s]\n', sum(f_out), sprintf('%d ',[D(find(f_out==1)).trialId]))
 
 D = D(~f_out);

@@ -51,6 +51,16 @@ startParams.eps   = startEps * ones(1, dims);
 % Initialize observation model parameters
 % ========================================
 yAll             = [D.y];
+
+%if there is a sient neuron, then add a single spike to avoid indefinete
+%matrix
+silentCells = find(sum(yAll,2)==0);
+if ~isempty(silentCells)
+   fprintf('%d silent neurons found [%s]. Adding a spike at random position\n',...
+           length(silentCells), sprintf('%d, ',silentCells));
+   yAll(silentCells,randi(length(yAll),1,5)) = 1;
+end
+
 try
     [faParams, faLL] = fastfa(yAll, dims);
     startParams.d = mean(yAll, 2);

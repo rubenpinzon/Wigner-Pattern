@@ -79,8 +79,8 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
 W                   = filter_laps(W);
-% W                   = W(randperm(length(W))); %permutation of laps
-W                   = shufftime(W); %time shuffling for each lap
+
+
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
@@ -117,12 +117,16 @@ plot(mean([W_right.y],2),'b','displayname','wheel after right')
 ylabel('Average firing rate')
 xlabel('Cell No.')
 set(gca,'fontsize',14)
-savefig()
+%%
 %=========================================================================%
 %=========(8) Compute loglike P(wheel|model_wheel)   =====================%
 %=========================================================================%
-%%
-load([roots{animal} name_save_file])
+%If model was not trained it can be loaded:
+%load([roots{animal} name_save_file])
+
+%transformation to W testing
+%W           = W(randperm(length(W))); %permutation of laps
+W          = shufftime(W); %time shuffling for each lap
 
 %Classification stats of P(proto_event|model) 
 models      = {M_left, M_right};
@@ -131,7 +135,7 @@ cm          = [Xtats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 % plot show likelihood given the models
-label.title = 'P(wheel_j | models) with word shuffling';
+label.title = 'P(wheel_j | models) with trial shuff. test set';
 label.modelA = 'Wheel after rigth alt.';
 label.modelB = 'Wheel after left alt.';
 label.xaxis = 'j';
@@ -139,7 +143,7 @@ label.yaxis = 'P(wheel_j|model)';
 compareLogLike(W, Xtats, label)
 
 %XY plot
-label.title = 'Classification with Fisher Disc. Wheel data';
+label.title = 'Class. with Fisher Disc. Wheel trial shuff. test';
 label.modelA = 'Wheel after rigth alt.';
 label.modelB = 'Wheel after left alt.';
 label.xaxis = 'P(trial_j|model right)';

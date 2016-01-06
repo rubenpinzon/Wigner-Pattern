@@ -376,10 +376,10 @@ n_proto     = length(P_seg);
 n_mods      = length(models);
 
 %Classification stats of P(proto_event|model) 
-stats       = classGPFA(P_seg, n_folds, debug, models);
+stats       = classGPFA(P_seg, models);
 cm          = [stats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*mean(cm(1,[1,3,5])),100*mean(cm(2,[2,4,6])))
-save([roots{animal} '_confusionM_protoEvents.mat'],'stats')
+%save([roots{animal} '_confusionM_protoEvents.mat'],'stats')
 %%
 %=========================================================================%
 %=========    (6.5) Loglike changing binning         =====================%

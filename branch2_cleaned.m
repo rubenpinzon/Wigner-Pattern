@@ -79,7 +79,8 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
 W                   = filter_laps(W);
-W                   = W(randperm(length(W)));
+% W                   = W(randperm(length(W))); %permutation of laps
+W                   = shufftime(W); %time shuffling for each lap
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
@@ -130,23 +131,12 @@ cm          = [Xtats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 % plot show likelihood given the models
-plot(Xtats.likelihood','-o')
-xlabel('Trials'), xlim([0 length(W)+1]), 
-ylabel('LogLikelihood')
-for t = 1 : length(Xtats.likelihood)
-  typeAssigned = '2';
-  
-  if Xtats.likelihood(1,t) > Xtats.likelihood(2,t)
-     typeAssigned = '1'; 
-  end
-  c = 'r';
-  if Xtats.class_output(t) == Xtats.real_label(t)
-      c = 'k';
-  end
-  text(t, -8700, typeAssigned, 'color',c)
-  line([t+0.5 t+0.5],ylim,'linestyle','--','color',[0.6 0.6 0.6])
-end
-set(gca,'xticklabel',[W.trialId])
+label.title = 'P(wheel_j | models) with word shuffling';
+label.modelA = 'Wheel after rigth alt.';
+label.modelB = 'Wheel after left alt.';
+label.xaxis = 'j';
+label.yaxis = 'P(wheel_j|model)';
+compareLogLike(W, Xtats, label)
 
 %XY plot
 label.title = 'Classification with Fisher Disc. Wheel data';

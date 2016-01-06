@@ -18,13 +18,18 @@ function Xtats = classGPFA(P, models, varargin)
 %
 %
 %Version 1.0 Ruben Pinzon@2015
-folds = length(models{1}.params);
+folds        = length(models{1}.params);
+useAllTrials = false;
 scale = false;
-if nargin>4
+if nargin == 3
    scaleK = varargin{1}; 
-   scale  = true;
-   
-   fprintf('Scaling the GP Kernel with %2.2f\n',scaleK)
+   if ~isempty(scaleK)
+    scale  = true;   
+    fprintf('Scaling the GP Kernel with %2.2f\n',scaleK)
+   end
+elseif nargin == 4
+   useAllTrials = true;
+   disp('Warning: Using all the trials for testing')
 end
 
 n_laps      = length(P);
@@ -35,13 +40,19 @@ for m = 1 : length(models)
     likelikehood   = -Inf*ones(folds, n_laps);
 
     for ifold = 1 : folds
-        usedlaps    = models{m}.trainTrials{ifold};
-        unseenP     = ones(1,n_laps);
-        for u = 1 : length(usedlaps)
-            u_idx = find(v_laps == usedlaps(u));
-            unseenP(u_idx) = 0;
+        
+        if ~useAllTrials
+            usedlaps    = models{m}.trainTrials{ifold};
+            unseenP     = ones(1,n_laps);
+            for u = 1 : length(usedlaps)
+                u_idx = find(v_laps == usedlaps(u));
+                unseenP(u_idx) = 0;
+            end
+            unseenP = find(unseenP ==1);
+        else
+            unseenP = 1:n_laps;
         end
-        unseenP = find(unseenP ==1);
+        
         for p = 1 : length(unseenP) 
         
             %select the model parameters from the fold#1 

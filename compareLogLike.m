@@ -1,4 +1,4 @@
-function compareLogLike(W, Xtats, label) 
+function compareLogLike(D, Xtats, label) 
 %Auxiliary functio to plot the likelihood after class with the GPFA.
 %
 %
@@ -7,7 +7,7 @@ figure,hold on
 set(gcf, 'color','w')
 
 plot(Xtats.likelihood','-o')
-xlabel('Trials'), xlim([0 length(W)+1]), 
+xlabel('Trials'), xlim([0 length(D)+1]), 
 ylabel('LogLikelihood')
 legend(label.modelA,label.modelB,...
        'Location','NW')
@@ -20,13 +20,14 @@ for t = 1 : length(Xtats.likelihood)
      typeAssigned = '1'; 
   end
   c = 'r';
-  if Xtats.class_output(t) == Xtats.real_label(t)
+  if Xtats.class_output(t) == D(t).type
       c = 'k';
   end
   text(t, min(min(Xtats.likelihood)), typeAssigned, 'color',c)
   line([t+0.5 t+0.5],ylim,'linestyle','--','color',[0.6 0.6 0.6])
 end
-set(gca,'xticklabel',[W.trialId])
+
+set(gca,'xticklabel',[D.trialId],'xtick',1:length([D.trialId]))
 
 set(gca,'fontsize',14)
 xlabel(label.xaxis)

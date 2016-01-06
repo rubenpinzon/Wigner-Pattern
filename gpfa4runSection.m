@@ -12,7 +12,7 @@ basepath        = '/media/bigdata/';
 [files, animals, roots]= get_matFiles(basepath);
 
 
-%========================Variables of Interest===========================
+%========================Paramteres and variables==========================
 animal          = 6;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
@@ -52,6 +52,7 @@ train_split      = true; %train GPFA on left/right separately?
 name_save_file  = '_trainedGPFA_run.mat';
 test_lap        = 10;
 maxTime         = 0; %maximum segmentation time 0 if use all
+
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -89,7 +90,7 @@ if train_split
     [R_left, R_right] = split_trails(R);
     if filterTrails
         R_left            = filter_laps(R_left);
-        R_right           = filter_laps(R_right);
+        R_right           = filter_laps(R_right,'bins');
     end
 
     M_left            = trainGPFA(R_left, zDim, showpred, n_folds);

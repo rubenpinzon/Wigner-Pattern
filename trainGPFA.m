@@ -26,8 +26,8 @@ for ifold = 1 : folds  % two-fold cross-validation
     train_data = D(train_mask);
     test_data  = D(test_mask);
     
-    test_trials{ifold}  = [train_data.trialId];
-    train_trials{ifold} = [test_data.trialId];
+    test_trials{ifold}  = [test_data.trialId];
+    train_trials{ifold} = [train_data.trialId];
     
     fprintf('training with trials %s\n',sprintf('%d, ',train_trials{ifold}))
     %training of the GPFA

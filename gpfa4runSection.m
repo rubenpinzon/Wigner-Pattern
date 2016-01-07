@@ -36,13 +36,13 @@ TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 clear data
 %section in the maze to analyze
-in              = 'mid_arm';
+in              = 'preturn';
 out             = 'lat_arm';
 debug           = true;
-namevar         = 'wheel';
+namevar         = 'run';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
-min_firing      = 0.8; %minimium firing rate
+min_firing      = 1.0; %minimium firing rate
 filterTrails    = false; % filter trails with irregular speed/spike count?
 % GPFA trainign
 n_folds         = 2;

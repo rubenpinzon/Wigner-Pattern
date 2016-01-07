@@ -29,8 +29,8 @@ if isfield(D, 'condition')
 else
     
    types = [D.type];
-   D_left  = D(types==1 | types == 4);
-   D_right = D(types==2 | types == 3);
+   D_left  = D(types==1);
+   D_right = D(types==2);
    
    %add colors and name of th e trial
    for d = 1 : length(D_left)       

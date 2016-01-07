@@ -79,9 +79,9 @@ type            = [P.type]; %{P(proto|model) , realtag}
 
 
 TP            = sum(max_mod == 1 & type == 1)/(sum(type == 1));
-FN            = sum(max_mod == 2 & type == 2)/(sum(type == 2));
+FN            = sum(max_mod == 2 & type == 2)/(sum(type ~= 1));
 FP            = sum(max_mod == 1 & type == 2)/(sum(type == 2));
-TN            = sum(max_mod == 2 & type == 1)/(sum(type == 1));
+TN            = sum(max_mod == 2 & type == 1)/(sum(type ~= 2));
 
 Xtats.conf_matrix    = [TP, FP; TN, FN];
 Xtats.class_output   = max_mod;

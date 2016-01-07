@@ -13,7 +13,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Paramteres and variables==========================
-animal          = 6;
+animal          = 4;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -108,7 +108,7 @@ Xorth = show_latent(M_right, R_right);
 %============== (6)    Save data                  ========================%
 %=========================================================================%
 
-save([roots{animal} name_save_file],'M','M_left','M_right','W')
+save([roots{animal} name_save_file],'M','M_left','M_right','R', 'keep_neurons')
 %%
 %=========================================================================%
 %=========(7) Compare mean spike counts              =====================%
@@ -130,27 +130,56 @@ load([roots{animal} name_save_file])
 
 %Classification stats of P(proto_event|model) 
 models      = {M_left, M_right};
-Xtats       = classGPFA(W, models);
+Xtats       = classGPFA(R, models);
 cm          = [Xtats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 %show likelihood given the models
-plot(Xtats.likelihood','-o')
-xlabel('Trials'), xlim([0 length(W)+1]), 
-ylabel('LogLikelihood')
-for t = 1 : length(W)
-  typeAssigned = '2';
-  
-  if Xtats.likelihood(1,t) > Xtats.likelihood(2,t)
-     typeAssigned = '1'; 
-  end
-  c = 'r';
-  if Xtats.class_output(t) == Xtats.real_label(t)
-      c = 'k';
-  end
-  text(t, -8700, typeAssigned, 'color',c)
-  line([t+0.5 t+0.5],ylim,'linestyle','--','color',[0.6 0.6 0.6])
-end
-set(gca,'xticklabel',[W.trialId])
+% plot show likelihood given the models
+label.title = 'P(run_j | Models_{left run, right run})';
+label.modelA = 'Left alt.';
+label.modelB = 'Right alt.';
+label.xaxis = 'j';
+label.yaxis = 'P(run_j| Models_{left run, right run})';
+compareLogLike(R, Xtats, label)
 
-     
+%XY plot
+label.title = 'LDA classifier';
+label.xaxis = 'P(run_j|Model_{left run})';
+label.yaxis = 'P(run_j|Model_{right run})';
+LDAclass(Xtats, label)
+
+%=========================================================================%
+%=========(9) Compute loglike P(wheel|run_wheel)     =====================%
+%=========================================================================%
+%#TODO: Separate this part v in a different script
+
+in              = 'wheel';
+out             = 'wheel';
+maxTime         = 6;
+allTrials       = true; %use all trials of running to test since they are 
+                        %all unseen to the wheel model
+
+S = get_section(D, in, out, debug, namevar); %lap#1: sensor errors 
+W = segment(S, bin_size, Fs, keep_neurons,...
+                [namevar '_spike_train'], maxTime);
+W = filter_laps(W);
+ 
+models      = {M_left, M_right};
+Xtats       = classGPFA(W, models,[],allTrials);
+cm          = [Xtats.conf_matrix];
+fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
+
+% plot show likelihood given the models
+label.title = 'P(wheel_j | run model)';
+label.modelA = 'Run rigth alt.';
+label.modelB = 'Run left alt.';
+label.xaxis = 'j';
+label.yaxis = 'P(wheel_j|run model)';
+compareLogLike(R, Xtats, label)
+
+%XY plot
+label.title = 'Class. with Fisher Disc.';
+label.xaxis = 'P(wheel_j|run right)';
+label.yaxis = 'P(wheel_j|run left)';
+LDAclass(Xtats, label)     

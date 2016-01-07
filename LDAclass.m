@@ -42,6 +42,8 @@ h2 = ezplot(f,[x_lim y_lim]);
 set(h2,'Color','m','LineWidth',2)
 set(gca,'fontsize',14)
 axis([[x_lim y_lim]])
-xlabel(label.xaxis)
-ylabel(label.yaxis)
-title(label.title)
+xlabel(label.xaxis,'fontname','Georgia')
+ylabel(label.yaxis,'fontname','Georgia')
+title(sprintf('%s, error= %f',label.title,err))
+
+

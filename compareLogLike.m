@@ -27,9 +27,9 @@ for t = 1 : length(Xtats.likelihood)
   line([t+0.5 t+0.5],ylim,'linestyle','--','color',[0.6 0.6 0.6])
 end
 
-set(gca,'xticklabel',[D.trialId],'xtick',1:length([D.trialId]))
+set(gca,'xticklabel',[D.trialId],'xtick',1:length([D.trialId]),'xticklabelrotation',45)
 
 set(gca,'fontsize',14)
-xlabel(label.xaxis)
-ylabel(label.yaxis)
+xlabel(label.xaxis,'fontname','Georgia')
+ylabel(label.yaxis,'fontname','Georgia')
 title(label.title)

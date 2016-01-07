@@ -42,7 +42,7 @@ debug           = true;
 namevar         = 'wheel';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
-min_firing      = 0.8; %minimium firing rate
+min_firing      = 1.0; %minimium firing rate
 % GPFA trainign
 n_folds         = 3;
 zDim            = 10; %latent dimension
@@ -50,7 +50,7 @@ showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
 name_save_file  = '_trainedGPFA_wheel.mat';
 test_lap        = 10;
-maxTime         = 4; %maximum segmentation time
+maxTime         = 6; %maximum segmentation time
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -122,7 +122,7 @@ set(gca,'fontsize',14)
 %=========(8) Compute loglike P(wheel|model_wheel)   =====================%
 %=========================================================================%
 %If model was not trained it can be loaded:
-load([roots{animal} name_save_file])
+%load([roots{animal} name_save_file])
 
 %transformation to W testing
 %W           = W(randperm(length(W))); %permutation of laps

@@ -45,7 +45,7 @@ bin_size        = 0.04; %ms
 min_firing      = 1.0; %minimium firing rate
 filterTrails    = false; % filter trails with irregular speed/spike count?
 % GPFA trainign
-n_folds         = 2;
+n_folds         = 3;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?

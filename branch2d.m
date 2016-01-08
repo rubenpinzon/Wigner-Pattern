@@ -1,4 +1,4 @@
-%Branch 2d SCRIPT FOR IDENTIFYING REPLAY EVENTS AFTER ACTIVITY
+%Branch 2d SCRIPT FOR IDENTIFYING PROTO EVENTS
 %
 %   USAGE: (1) set the value of the global variables. (2) Extract the stopping
 %   region after an alternation which corresponds to the reward area and store
@@ -323,7 +323,7 @@ for seq = 1 : length(S)
         drawnow
     end
 end
-save([roots{animal} '_proto_events_v2.mat'],'P','S')
+%save([roots{animal} '_proto_events_v2.mat'],'P','S')
 
 %% 
 %========================================================================%

@@ -36,7 +36,7 @@ TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 clear data
 %section in the maze to analyze
-in              = 'preturn';
+in              = 'mid_arm';
 out             = 'lat_arm';
 debug           = true;
 namevar         = 'run';
@@ -107,7 +107,7 @@ Xorth = show_latent(M_right, R_right);
 %======================================================================== %
 %============== (6)    Save data                  ========================%
 %=========================================================================%
-
+fprintf('Will save at %s\n',[roots{animal} name_save_file])
 save([roots{animal} name_save_file],'M','M_left','M_right','R', 'keep_neurons')
 %%
 %=========================================================================%
@@ -123,12 +123,12 @@ xlabel('Cell No.')
 set(gca,'fontsize',14)
 savefig()
 %=========================================================================%
-%=========(8) Compute loglike P(wheel|model_wheel)   =====================%
+%=========(8) Compute loglike P(run|model_run)       =====================%
 %=========================================================================%
 
 load([roots{animal} name_save_file])
-
-%Classification stats of P(proto_event|model) 
+R           = shufftime(R);
+%Classification stats of P(run events|model) 
 models      = {M_left, M_right};
 Xtats       = classGPFA(R, models);
 cm          = [Xtats.conf_matrix];
@@ -150,7 +150,7 @@ label.yaxis = 'P(run_j|Model_{right run})';
 LDAclass(Xtats, label)
 
 %=========================================================================%
-%=========(9) Compute loglike P(wheel|run_wheel)     =====================%
+%=========(9) Compute loglike P(wheel|run_model)     =====================%
 %=========================================================================%
 %#TODO: Separate this part v in a different script
 
@@ -164,7 +164,8 @@ S = get_section(D, in, out, debug, namevar); %lap#1: sensor errors
 W = segment(S, bin_size, Fs, keep_neurons,...
                 [namevar '_spike_train'], maxTime);
 W = filter_laps(W);
- 
+W = W(randperm(length(W))); 
+
 models      = {M_left, M_right};
 Xtats       = classGPFA(W, models,[],allTrials);
 cm          = [Xtats.conf_matrix];

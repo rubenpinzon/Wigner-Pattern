@@ -135,7 +135,7 @@ load([roots{animal} name_save_file])
 models      = {M_left, M_right};
 Xtats       = classGPFA(W, models);
 cm          = [Xtats.conf_matrix];
-fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
+fprintf('Max-min Classifier hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 % plot show likelihood given the models
 label.title = 'P(wheel_j | models) with trial shuff. test set';
@@ -175,7 +175,7 @@ cm          = [Xtats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 % plot show likelihood given the models
-label.title = 'P(run_j | wheel model) permutation j';
+label.title = 'P(run_j | wheel model)';
 label.modelA = 'Run rigth alt.';
 label.modelB = 'Run left alt.';
 label.xaxis = 'j';

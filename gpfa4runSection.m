@@ -13,7 +13,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Paramteres and variables==========================
-animal          = 4;
+animal          = 6;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -38,7 +38,7 @@ clear data
 %section in the maze to analyze
 in              = 'mid_arm';
 out             = 'lat_arm';
-debug           = true;
+debug           = false;
 namevar         = 'run';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
@@ -61,10 +61,12 @@ D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType,...
                  wh_speed);
 
 %show one lap for debug purposes 
-figure(test_lap)
-raster(D(test_lap).spikes), hold on
-plot(90.*D(test_lap).speed./max(D(test_lap).speed),'k')
-plot(90.*D(test_lap).wh_speed./max(D(test_lap).wh_speed),'r')
+if debug
+    figure(test_lap)
+    raster(D(test_lap).spikes), hold on
+    plot(90.*D(test_lap).speed./max(D(test_lap).speed),'k')
+    plot(90.*D(test_lap).wh_speed./max(D(test_lap).wh_speed),'r')
+end
 
 % ========================================================================%
 %==============  (2)  Extract Running Sections    ========================%
@@ -102,7 +104,8 @@ end
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
 
-Xorth = show_latent(M_right, R_right);
+colors = [1 0 0; 0 0 1; 0.1 0.1 0.1; 0.1 0.1 0.1];
+Xorth = show_latent({M},R,colors);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%

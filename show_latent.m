@@ -12,7 +12,7 @@ function Xorth = show_latent(model, data, colors, labels)
 
 n_models = length(model);
 fprintf('%d models provided\n',n_models);
-
+figure
 for m = 1 : n_models    
     Params   = model{m}.params{1}; % fold #1
     traj     = exactInferenceWithLL(data, Params,'getLL',0);

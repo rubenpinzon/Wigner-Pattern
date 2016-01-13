@@ -1,5 +1,5 @@
-%GPFA4WHEELSECTION This script contains a modularized version of the analysis
-%        included in the script branch2.m, that process the HC-5 database.
+%BRANCH2_CLEANED This script contains a modularized version of the analysis
+%        included in the script branch2d.m, that process the HC-5 database.
 %
 %        DESCRIPTION: This script carried out most of the analysis in the files
 %        branch2.m using functions. See branch2.m for further details.
@@ -12,7 +12,7 @@ basepath        = '/media/bigdata/';
 [files, animals, roots]= get_matFiles(basepath);
 
 
-%========================Variables of Interest===========================
+%========================Paramteres and variables==========================
 animal          = 6;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
@@ -36,30 +36,31 @@ TrialType       = data.Laps.TrialType;
 Typetrial_tx    = {'left', 'right', 'errorLeft', 'errorRight'};
 clear data
 %section in the maze to analyze
-in              = 'wheel';
-out             = 'wheel';
+in              = 'mid_arm';
+out             = 'mid_arm';
 debug           = true;
-namevar         = 'wheel';
+namevar         = 'run';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
 min_firing      = 1.0; %minimium firing rate
+filterTrails    = false; % filter trails with irregular speed/spike count?
 % GPFA trainign
 n_folds         = 3;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
-name_save_file  = '_trainedGPFA_wheel.mat';
+name_save_file  = '_trainedGPFA_midArm.mat';
 test_lap        = 10;
-maxTime         = 6; %maximum segmentation time
-filterlaps      = false;
+maxTime         = 0; %maximum segmentation time 0 if use all
+
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
-%%
+
 D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType,...
                  wh_speed);
 
-%show raster
+%show one lap for debug purposes 
 if debug
     figure(test_lap)
     raster(D(test_lap).spikes), hold on
@@ -71,7 +72,7 @@ end
 %==============  (2)  Extract Running Sections    ========================%
 %=========================================================================%
 
-R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors 
+S = get_section(D, in, out, debug, namevar); %lap#1: sensor errors 
 
 % ========================================================================%
 %============== (3) Segment the spike vectors     ========================%
@@ -79,119 +80,110 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 %load run model and keep the same neurons
 % run = load([roots{animal} '_branch2_results40ms.mat']);
 
-[W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
+[R,keep_neurons]    = segment(S, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
-if filterlaps
-    W                   = filter_laps(W);
-end
-
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
 %=========================================================================%
-M                 = trainGPFA([W R], zDim, showpred, n_folds);
+M                 = trainGPFA(R, zDim, showpred, n_folds);
 
 if train_split
-    [W_left, W_right] = split_trails(W);
-    M_left            = trainGPFA(W_left, zDim, showpred, n_folds);
-    M_right           = trainGPFA(W_right, zDim, showpred, n_folds);
+    [R_left, R_right] = split_trails(R);
+    if filterTrails
+        R_left            = filter_laps(R_left);
+        R_right           = filter_laps(R_right,'bins');
+    end
+
+    M_left            = trainGPFA(R_left, zDim, showpred, n_folds);
+    M_right           = trainGPFA(R_right, zDim, showpred, n_folds);
 end
 
 %%
 % ========================================================================%
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
+
 colors = [1 0 0; 0 0 1; 0.1 0.1 0.1; 0.1 0.1 0.1];
-labels = [W.type];
-figure
-Xorth = show_latent({M_left, M_right},W, colors, labels);
+Xorth = show_latent({M},R,colors);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%
 %=========================================================================%
 fprintf('Will save at %s\n',[roots{animal} name_save_file])
-save([roots{animal} name_save_file],'M','M_left','M_right','W','R', 'keep_neurons')
+save([roots{animal} name_save_file],'M','M_left','M_right','R', 'keep_neurons')
 %%
 %=========================================================================%
 %=========(7) Compare mean spike counts              =====================%
 %=========================================================================%
 figure(7)
 set(gcf,'position',[100 100 500*1.62 500],'color','w')
-plot(mean([W_left.y],2),'r','displayname','wheel after left')
+plot(mean([R_left.y],2),'r','displayname','wheel after left')
 hold on
-plot(mean([W_right.y],2),'b','displayname','wheel after right')
+plot(mean([R_right.y],2),'b','displayname','wheel after right')
 ylabel('Average firing rate')
 xlabel('Cell No.')
 set(gca,'fontsize',14)
-%%
+savefig()
 %=========================================================================%
-%=========(8) Compute loglike P(wheel|model_wheel)   =====================%
+%=========(8) Compute loglike P(run|model_run)       =====================%
 %=========================================================================%
 
-%If model was not trained it can be loaded:
 load([roots{animal} name_save_file])
-
-%transformation to W testing
-%W           = W(randperm(length(W))); %permutation of laps
-%W           = shufftime(W); %time shuffling for each lap
-
-errorTrials = find([W.type] > 2);                                          %erroneous trials wheel events
-We          = W(errorTrials);                                              %erroneous trials struct                 
-
-%Classification stats of P(proto_event|model) 
+R           = shufftime(R);
+%Classification stats of P(run events|model) 
 models      = {M_left, M_right};
-Xtats       = classGPFA(We, models);
+Xtats       = classGPFA(R, models);
 cm          = [Xtats.conf_matrix];
-fprintf('Max-min Classifier hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
+fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
+%show likelihood given the models
 % plot show likelihood given the models
-label.title = 'P(wheel_j after error | models W)';
-label.modelA = 'Wheel after rigth alt.';
-label.modelB = 'Wheel after left alt.';
+label.title = 'P(run_j | Models_{left run, right run})';
+label.modelA = 'Left alt.';
+label.modelB = 'Right alt.';
 label.xaxis = 'j';
-label.yaxis = 'P(wheel_j|model)';
-compareLogLike(We, Xtats, label)                                           %P(error W | models W)
+label.yaxis = 'P(run_j| Models_{left run, right run})';
+compareLogLike(R, Xtats, label)
 
 %XY plot
 label.title = 'LDA classifier';
-label.modelA = 'Wheel after rigth alt.';
-label.modelB = 'Wheel after left alt.';
-label.xaxis = 'P(wheel_j|Model_{wheel after right run})';
-label.yaxis = 'P(wheel_j|Model_{wheel after left run})';
+label.xaxis = 'P(run_j|Model_{left run})';
+label.yaxis = 'P(run_j|Model_{right run})';
 LDAclass(Xtats, label)
-line(xlim, ylim,'color','k')
 
 %=========================================================================%
-%=========(9) Compute loglike P(run|model_wheel)     =====================%
+%=========(9) Compute loglike P(wheel|run_model)     =====================%
 %=========================================================================%
 %#TODO: Separate this part v in a different script
 
-in              = 'preturn';
-out             = 'lat_arm';
-maxTime         = 0;
+in              = 'wheel';
+out             = 'wheel';
+maxTime         = 6;
 allTrials       = true; %use all trials of running to test since they are 
                         %all unseen to the wheel model
 
 S = get_section(D, in, out, debug, namevar); %lap#1: sensor errors 
-R = segment(S, bin_size, Fs, keep_neurons,...
+W = segment(S, bin_size, Fs, keep_neurons,...
                 [namevar '_spike_train'], maxTime);
-R = filter_laps(R);
-%R = R(randperm(length(R))); 
+W = filter_laps(W);
+W = W(randperm(length(W))); 
+
 models      = {M_left, M_right};
-Xtats       = classGPFA(R, models,[],allTrials);
+Xtats       = classGPFA(W, models,[],allTrials);
 cm          = [Xtats.conf_matrix];
 fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 % plot show likelihood given the models
-label.title = 'P(run_j | wheel model)';
+label.title = 'P(wheel_j | run model)';
 label.modelA = 'Run rigth alt.';
 label.modelB = 'Run left alt.';
 label.xaxis = 'j';
-label.yaxis = 'P(run_j|wheel model)';
+label.yaxis = 'P(wheel_j|run model)';
 compareLogLike(R, Xtats, label)
 
 %XY plot
 label.title = 'Class. with Fisher Disc.';
-label.xaxis = 'P(run_j|wheel model right)';
-label.yaxis = 'P(run_j|wheel model left)';
-LDAclass(Xtats, label)
+label.xaxis = 'P(wheel_j|run right)';
+label.yaxis = 'P(wheel_j|run left)';
+LDAclass(Xtats, label)     

@@ -4,8 +4,12 @@ function LDAclass(Xtats, label)
 %           where N is the number of samples.
 %
 %Ruben Pinzon@2015
+twoModels = size(Xtats.likelihood,1)>1;   
+
+
 mod1 = Xtats.likelihood(1,:);
 mod2 = Xtats.likelihood(2,:);
+
 
 x_lim = [min(mod1) max(mod1)];
 y_lim = [min(mod2) max(mod2)];

@@ -63,7 +63,7 @@ showpred        = false;                                                   %show
 name_save_file  = '_trainedGPFA_all.mat';                                  %Name of the file where trained model will be stored                                    
 test_lap        = 10;                                                      %Diagnostic lap
 filterlaps      = false;                                                   %filter laps by average speed?
-
+%%
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -91,9 +91,9 @@ W = get_section(D, in_wh, out_wh, debug, namevar_wh);
 %=========================================================================%
 
 [R,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
-                              [namevar '_spike_train'], maxTime_run);      %segment run trial 
+                              [namevar_run '_spike_train'], maxTime_run);  %segment run trial 
 W                   = segment(W, bin_size, Fs, keep_neurons,...
-                              [namevar '_spike_train'], maxTime_wh);       %segment wheel trial with the same neurons *kept* in "run" 
+                              [namevar_wh '_spike_train'], maxTime_wh);    %segment wheel trial with the same neurons *kept* in "run" 
                           
 if filterlaps
     R               = filter_laps(R);
@@ -104,13 +104,15 @@ end
 %============== (4)         Train GPFA            ========================%
 %=========================================================================%
 M                 = trainGPFA([W R], zDim, showpred, n_folds);             %Use all the sections [W R]
-
+%#TODO: The trialId gets confused in the joint of [W R], add to M field 
+%eventNo. 
 %%
 % ========================================================================%
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
-labels = [[R.type] [W.type]];                                              %Here the labels can be used to show trial type, sections
-Xorth  = show_latent({M},[R W], colors, labels);
+labels = [ones(1,length(R)) 2*ones(1,length(W))];                          %Here the labels can be used to show trial type, sections
+labels = [W.type];
+Xorth  = show_latent({M},W, colors, labels);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%
@@ -118,34 +120,22 @@ Xorth  = show_latent({M},[R W], colors, labels);
 fprintf('Will save at %s\n',[roots{animal} name_save_file])
 save([roots{animal} name_save_file],'M','W','R', 'keep_neurons')
 
-%=========================================================================%
-%=========(8) Compute loglike P(wheel|model)         =====================%
-%=========================================================================%
 
-load([roots{animal} name_save_file])                                       %If model was trained already it can be loaded:
-
-%W           = W(randperm(length(W))); %permutation of laps                % transformations
-%W           = shufftime(W); %time shuffling for each lap
-
-%Classification stats of P(proto_event|model) 
 models      = {M};
-Xtats       = classGPFA(W, models);
-cm          = [Xtats.conf_matrix];
-fprintf('Max-min Classifier hitA: %2.2f%%, hitB: %2.2f%%\n',...
-    100*cm(1,1),100*cm(2,2))
+Xtats       = classGPFA(W, models,[],'all');
 
-% plot show likelihood given the models
-label.title = 'P(wheel_j | models) with trial shuff. test set';
-label.modelA = 'Wheel after rigth alt.';
-label.modelB = 'Wheel after left alt.';
-label.xaxis = 'j';
-label.yaxis = 'P(wheel_j|model)';
-compareLogLike(W, Xtats, label)
+%======================================================================== %
+%============== (7)    Load the saved model       ========================%
+%======================================================================== %
 
-%XY plot
-label.title = 'LDA classifier';
-label.modelA = 'Wheel after rigth alt.';
-label.modelB = 'Wheel after left alt.';
-label.xaxis = 'P(wheel_j|Model_{wheel after right run})';
-label.yaxis = 'P(wheel_j|Model_{wheel after left run})';
-LDAclass(Xtats, label)
+load([roots{animal} name_save_file])                                       %Models already trained
+
+%======================================================================== %
+%======(8)    Classification based on latent variables    ================%
+%======================================================================== %
+
+traj = exactInferenceWithLL(W, M.params{1},'getLL',0);                     %Choose models from fold #1
+W    = segmentByTrial(W,orthogonalize([traj.xsm], M.params{1}.C),'Xorth'); %ortogonalize and segment by trial latent vars    
+P    = extractPoints(W);                                                   %Extract points of interest from the latent variables (stat, 1/3, 1/2, 2/3, end)
+
+

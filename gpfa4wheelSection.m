@@ -13,7 +13,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 6;
+animal          = 4;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -62,9 +62,12 @@ D = extract_laps(Fs,spk_lap,speed,X,Y,events,isIntern, laps, TrialType,...
 %show raster
 if debug
     figure(test_lap)
-    raster(D(test_lap).spikes), hold on
-    plot(90.*D(test_lap).speed./max(D(test_lap).speed),'k')
-    plot(90.*D(test_lap).wh_speed./max(D(test_lap).wh_speed),'r')
+    set(gcf,'position',[100 100 500*1.62 500])
+    time = linspace(0,length(D(test_lap).speed)/Fs,length(D(test_lap).speed));
+    raster(D(test_lap).spikes), 
+    plot(time,D(test_lap).speed./max(D(test_lap).speed),'k'),hold on
+    plot(time,D(test_lap).wh_speed./max(D(test_lap).wh_speed),'r')
+    xlabel('Time (s)')
 end
 
 % ========================================================================%
@@ -140,7 +143,7 @@ We          = W(errorTrials);                                              %erro
 
 %Classification stats of P(proto_event|model) 
 models      = {M_left, M_right};
-Xtats       = classGPFA(We, models);
+Xtats       = classGPFA(W, models);
 cm          = [Xtats.conf_matrix];
 fprintf('Max-min Classifier hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
@@ -150,16 +153,16 @@ label.modelA = 'Wheel after rigth alt.';
 label.modelB = 'Wheel after left alt.';
 label.xaxis = 'j';
 label.yaxis = 'P(wheel_j|model)';
-compareLogLike(We, Xtats, label)                                           %P(error W | models W)
+compareLogLike(W, Xtats, label)                                           %P(error W | models W)
 
 %XY plot
-label.title = 'LDA classifier';
+label.title = 'Max-MIn classifier';
 label.modelA = 'Wheel after rigth alt.';
 label.modelB = 'Wheel after left alt.';
 label.xaxis = 'P(wheel_j|Model_{wheel after right run})';
 label.yaxis = 'P(wheel_j|Model_{wheel after left run})';
 LDAclass(Xtats, label)
-line(xlim, ylim,'color','k')
+
 
 %=========================================================================%
 %=========(9) Compute loglike P(run|model_wheel)     =====================%

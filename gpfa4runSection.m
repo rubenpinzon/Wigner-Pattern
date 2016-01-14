@@ -46,13 +46,13 @@ min_firing      = 1.0; %minimium firing rate
 filterTrails    = false; % filter trails with irregular speed/spike count?
 % GPFA trainign
 n_folds         = 3;
-zDim            = 10; %latent dimension
+zDim            = 5; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
 name_save_file  = '_trainedGPFA_run.mat';
 test_lap        = 10;
 maxTime         = 0; %maximum segmentation time 0 if use all
-
+%%
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -104,8 +104,9 @@ end
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
 
-colors = [1 0 0; 0 0 1; 0.1 0.1 0.1; 0.1 0.1 0.1];
-Xorth = show_latent({M},R,colors);
+colors = [1 0 0; 0 0 1; 0.1 0.1 0.1; 0.8 0.8 0.8];
+labels = [R.type];
+Xorth = show_latent({M},R,colors, labels);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%

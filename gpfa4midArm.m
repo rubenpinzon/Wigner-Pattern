@@ -38,7 +38,7 @@ clear data
 %section in the maze to analyze
 in              = 'mid_arm';
 out             = 'mid_arm';
-debug           = true;
+debug           = false;
 namevar         = 'run';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
@@ -46,13 +46,13 @@ min_firing      = 1.0; %minimium firing rate
 filterTrails    = false; % filter trails with irregular speed/spike count?
 % GPFA trainign
 n_folds         = 3;
-zDim            = 10; %latent dimension
+zDim            = 5; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
 name_save_file  = '_trainedGPFA_midArm.mat';
 test_lap        = 10;
 maxTime         = 0; %maximum segmentation time 0 if use all
-
+%%
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -105,7 +105,8 @@ end
 %=========================================================================%
 
 colors = [1 0 0; 0 0 1; 0.1 0.1 0.1; 0.1 0.1 0.1];
-Xorth = show_latent({M},R,colors);
+labels = [R.type];
+Xorth = show_latent({M},R,colors, labels);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%
@@ -129,8 +130,9 @@ savefig()
 %=========(8) Compute loglike P(run|model_run)       =====================%
 %=========================================================================%
 
-load([roots{animal} name_save_file])
-R           = shufftime(R);
+load([roots{animal} name_save_file])                                       %Load trained model
+R           = shufftime(R);                                                %shiffling time bins to destroy dynamics
+R           = filter_laps(R);
 %Classification stats of P(run events|model) 
 models      = {M_left, M_right};
 Xtats       = classGPFA(R, models);
@@ -139,7 +141,7 @@ fprintf('hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
 
 %show likelihood given the models
 % plot show likelihood given the models
-label.title = 'P(run_j | Models_{left run, right run})';
+label.title = sprintf('P(run|run mid arm), zDim = %d',zDim);
 label.modelA = 'Left alt.';
 label.modelB = 'Right alt.';
 label.xaxis = 'j';
@@ -147,7 +149,7 @@ label.yaxis = 'P(run_j| Models_{left run, right run})';
 compareLogLike(R, Xtats, label)
 
 %XY plot
-label.title = 'LDA classifier';
+label.title = 'Max-Min classifier';
 label.xaxis = 'P(run_j|Model_{left run})';
 label.yaxis = 'P(run_j|Model_{right run})';
 LDAclass(Xtats, label)

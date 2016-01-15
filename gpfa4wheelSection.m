@@ -13,7 +13,7 @@ basepath        = '/media/bigdata/';
 
 
 %========================Variables of Interest===========================
-animal          = 4;
+animal          = 6;
 data            = load(files{animal});
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
@@ -104,10 +104,12 @@ end
 % ========================================================================%
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
-colors = [1 0 0; 0 0 1; 0.1 0.1 0.1; 0.1 0.1 0.1];
+cgergo = load('colors');
+
+colors = cgergo.cExpon([2 3 1], :);
 labels = [W.type];
 figure
-Xorth = show_latent({M_left, M_right},W, colors, labels);
+Xorth = show_latent({M},W, colors, labels);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%
@@ -142,7 +144,7 @@ errorTrials = find([W.type] > 2);                                          %erro
 We          = W(errorTrials);                                              %erroneous trials struct                 
 
 %Classification stats of P(proto_event|model) 
-models      = {M_left, M_right};
+models      = {M_right, M_left};                                           %here models have future run label, 
 Xtats       = classGPFA(W, models);
 cm          = [Xtats.conf_matrix];
 fprintf('Max-min Classifier hitA: %2.2f%%, hitB: %2.2f%%\n', 100*cm(1,1),100*cm(2,2))
@@ -156,12 +158,12 @@ label.yaxis = 'P(wheel_j|model)';
 compareLogLike(W, Xtats, label)                                           %P(error W | models W)
 
 %XY plot
-label.title = 'Max-MIn classifier';
-label.modelA = 'Wheel after rigth alt.';
-label.modelB = 'Wheel after left alt.';
-label.xaxis = 'P(wheel_j|Model_{wheel after right run})';
-label.yaxis = 'P(wheel_j|Model_{wheel after left run})';
-LDAclass(Xtats, label)
+label.title = '';
+label.modelA = 'Wheel after left alt.';
+label.modelB = 'Wheel after right alt.';
+label.xaxis = 'Log P(wheel|Model_{wheel after left run})';
+label.yaxis = 'Log P(wheel|Model_{wheel after right run})';
+LDAclass(Xtats, label, cgergo.cExpon([2 3], :))
 
 
 %=========================================================================%

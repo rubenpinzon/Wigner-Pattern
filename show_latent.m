@@ -28,10 +28,10 @@ for m = 1 : n_models
        lap_t = T(ilap)+1:T(ilap+1);   
        c        = colors(labels(ilap),:); %this color is model, has to be the trial type
 
-       plot_xorth(x(1,lap_t),x(2,lap_t),x(3,lap_t),[1 2 4 5 7 8],{'X_1','X_2','X_3'},c,num2str(traj(ilap).trialId))           
-       plot_xorth(x(1,lap_t),x(2,lap_t),[],3,{'X_1','X_2'},c)
-       plot_xorth(x(2,lap_t),x(3,lap_t),[],6,{'X_2','X_3'},c)
-       plot_xorth(x(1,lap_t),x(3,lap_t),[],9,{'X_1','X_3'},c)   
+       plot_xorth(x(1,lap_t),x(2,lap_t),x(3,lap_t),[1 2 4 5 7 8],{'{\itx}_0','{\itx}_1','{\itx}_2'},c,num2str(traj(ilap).trialId))           
+       plot_xorth(x(1,lap_t),x(2,lap_t),[],3,{'{\itx}_0','{\itx}_1'},c)
+       plot_xorth(x(2,lap_t),x(3,lap_t),[],6,{'{\itx}_1','{\itx}_2'},c)
+       plot_xorth(x(1,lap_t),x(3,lap_t),[],9,{'{\itx}_0','{\itx}_2'},c)   
 
       
     end

@@ -104,7 +104,9 @@ end
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
 
-colors = [1 0 0; 0 0 1; 0.1 0.1 0.1; 0.1 0.1 0.1];
+cgergo = load('colors');
+
+colors = cgergo.cExpon([2 3 1], :);
 labels = [R.type];
 Xorth = show_latent({M},R,colors, labels);
 
@@ -149,11 +151,11 @@ label.yaxis = 'P(run_j| Models_{left run, right run})';
 compareLogLike(R, Xtats, label)
 
 %XY plot
-label.title = 'Max-Min classifier';
-label.xaxis = 'P(run_j|Model_{left run})';
-label.yaxis = 'P(run_j|Model_{right run})';
-LDAclass(Xtats, label)
-
+cgergo = load('colors');
+label.title = '';
+label.xaxis = 'Log P(run|Model_{left run})';
+label.yaxis = 'Log P(run|Model_{right run})';
+LDAclass(Xtats, label, cgergo.cExpon([2 3], :))
 %=========================================================================%
 %=========(9) Compute loglike P(wheel|run_model)     =====================%
 %=========================================================================%

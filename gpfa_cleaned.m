@@ -110,9 +110,10 @@ M                 = trainGPFA([W R], zDim, showpred, n_folds);             %Use 
 % ========================================================================%
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
-labels = [ones(1,length(R)) 2*ones(1,length(W))];                          %Here the labels can be used to show trial type, sections
-labels = [W.type];
-Xorth  = show_latent({M},W, colors, labels);
+labels = [ones(1,length(W)) 2*ones(1,length(R))];                          %Here the labels can be used to show trial type, sections
+% labels = [W.type];
+colors = cgergo.cExpon;
+Xorth  = show_latent({M},[R W], colors, labels);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%

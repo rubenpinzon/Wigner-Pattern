@@ -8,13 +8,15 @@
 
 clc, close all; clear all;
 
-basepath        = '/media/bigdata/';
+basepath        = '/home/ruben/Documents/HAS/HC-5/';
 [files, animals, roots]= get_matFiles(basepath);
 
 
 %========================Paramteres and variables==========================
-animal          = 6;
+animal          = 2;
+fprintf('Loading animal %s\n',animals{animal});
 data            = load(files{animal});
+
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
 laps(end+1)     = data.Par.SyncOff;
@@ -103,10 +105,11 @@ end
 % ========================================================================%
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
+cgergo = load('colors');
 
 colors = cgergo.cExpon([2 3 1], :);
 labels = [R.type];
-Xorth = show_latent({M},R,colors, labels);
+x_orth = show_latent({M},R,colors, labels);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%
@@ -190,3 +193,19 @@ label.title = 'Class. with Fisher Disc.';
 label.xaxis = 'P(wheel_j|run right)';
 label.yaxis = 'P(wheel_j|run left)';
 LDAclass(Xtats, label)     
+
+%%
+%=========================================================================% Requires loading the model and data struct and extract the latent
+%=========(10) Classification of Xorth(start,mid,end) ====================% variables: steps (8, and 5) in that order
+%=========================================================================% Requires also library prtools for the classifier
+
+for k = 1 : length(x_orth)
+ T           = size(x_orth{k},2);
+ x_fea(k,:)  = [x_orth{k}(:,1)' x_orth{k}(:,ceil(T/2))' x_orth{k}(:,end)'];%Start, middle, and end points of trajectories as features (5 x 3) = 15 features     
+end
+
+label           = [R.type]';                                               %labels for the Bayes classifier (1, -1 => type 2)
+label(label==3) = 1;
+
+
+classrate       = bayes2c(x_fea,label,n_folds);

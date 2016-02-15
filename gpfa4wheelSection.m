@@ -8,13 +8,14 @@
 
 clc, close all; clear all;
 
-basepath        = '/media/bigdata/';
+basepath        = '/home/ruben/Documents/HAS/HC-5/';
 [files, animals, roots]= get_matFiles(basepath);
 
-
 %========================Variables of Interest===========================
-animal          = 6;
+animal          = 1;
+fprintf('Loading animal %s\n',animals{animal});
 data            = load(files{animal});
+
 clusters        = data.Spike.totclu;
 laps            = data.Laps.StartLaps(data.Laps.StartLaps~=0); %@1250 Hz
 laps(end+1)     = data.Par.SyncOff;
@@ -38,8 +39,8 @@ clear data
 %section in the maze to analyze
 in              = 'wheel';
 out             = 'wheel';
-debug           = true;
-namevar         = 'wheel';
+debug           = false;
+namevar         = ['wheel_' animals{animal}(end-5:end)];
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
 min_firing      = 1.0; %minimium firing rate
@@ -74,7 +75,7 @@ end
 %==============  (2)  Extract Running Sections    ========================%
 %=========================================================================%
 
-R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors 
+R = get_section(D(2:end-1), in, out, debug, namevar); %lap#1: sensor errors 
 
 % ========================================================================%
 %============== (3) Segment the spike vectors     ========================%
@@ -85,14 +86,14 @@ R = get_section(D(2:end), in, out, debug, namevar); %lap#1: sensor errors
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
 if filterlaps
-    W                   = filter_laps(W);
+    W               = filter_laps(W);
 end
 
 %%
 % ========================================================================%
 %============== (4)         Train GPFA            ========================%
 %=========================================================================%
-M                 = trainGPFA([W R], zDim, showpred, n_folds);
+M                 = trainGPFA(W, zDim, showpred, n_folds);
 
 if train_split
     [W_left, W_right] = split_trails(W);
@@ -108,8 +109,7 @@ cgergo = load('colors');
 
 colors = cgergo.cExpon([2 3 1], :);
 labels = [W.type];
-figure
-Xorth = show_latent({M},W, colors, labels);
+x_orth = show_latent({M},W, colors, labels);
 
 %======================================================================== %
 %============== (6)    Save data                  ========================%
@@ -200,3 +200,62 @@ label.title = 'Class. with Fisher Disc.';
 label.xaxis = 'P(run_j|wheel model right)';
 label.yaxis = 'P(run_j|wheel model left)';
 LDAclass(Xtats, label)
+
+%%
+%=========================================================================% Requires loading the model and data struct and extract the latent
+%=========(11) Classification of Xorth point by point ====================% variables: steps (8, and 5) in that order
+%=========================================================================% Requires also library prtools for the classifier
+                                                                          % An issue is the nonuniform lenght of x_orths
+                                                                          % Run interpolacion to make them uniform
+
+label           = [W.type]';                                              %
+label(label==3) = 1;
+len_x           = min([W.T]);                                             % min len to cut all trajetories to the same length
+
+for t = 1 : len_x 
+    for k = 1 : length(x_orth)                                            % Each trial    
+        x_fea(k,:) = [x_orth{k}(:,t)];    
+    end
+    
+    classrate(t,:)  = bayes2c(x_fea,label,n_folds);
+end
+            
+figure()                                                                  % Show accuracy
+subplot(211)
+set(gcf,'color','w')
+errorbar(classrate(:,1),classrate(:,2))                                   % Total accuracy
+set(gca,'fontsize',14,'fontname','georgia')
+grid on
+xlabel('Bins'), ylabel('Total Accuracy')
+xlim([1, 150])
+
+subplot(212)
+for l = 1 : 10
+    spe     = R(l).wheel_06_002_angularVelo(1:bin_size*Fs:150*bin_size*Fs);              % Animal position (donwsampled with the bin size)
+    plot(spe,'color',cgergo.cExpon(rem(l,2)+1,:),'Displayname',...
+        sprintf('W lap %d',l),'marker','*'), hold on
+
+end
+xlim([1, 150]), grid on
+xlabel('Bins'), ylabel('Speed (mm/s)')
+
+%%
+%=========================================================================%
+%=========(11) Studying the speed profile in the wheel====================%
+%=========================================================================%
+figure
+t_max  = nan(length(R),3);
+set(gcf,'color','w')
+for l = 1 : length(R)
+   subplot(3,1,R(l).type),hold on, grid on
+   plot(R(l).wheel_06_002_angularVelo, 'color', cgergo.cExpon(R(l).type,:))  
+   [a, b]  =  max(R(l).wheel_06_002_angularVelo);
+   
+   t_max(l, R(l).type) = b;
+end
+
+figure
+subplot(211)
+hist(t_max(:,1))
+subplot(212)
+hist(t_max(:,2))

@@ -207,6 +207,24 @@ label           = [R.type]';                                               %labe
 label(label==3) = 1;
 
 
-classrate       = bayes2c(x_fea,label,folds);
+classrate       = bayes2c(x_fea,label,n_folds);
 
+%%
+%=========================================================================% Requires loading the model and data struct and extract the latent
+%=========(11) Classification of Xorth point by point ====================% variables: steps (8, and 5) in that order
+%=========================================================================% Requires also library prtools for the classifier
+                                                                          % An issue is the nonuniform lenght of x_orths
+                                                                          % Run interpolacion to make them uniform
+
+label           = [R.type]';                                              %
+label(label==3) = 1;
+len_x           = min([R.T]);                                             % min len to cut all trajetories to the same length
+
+for t = 1 : len_x 
+    for k = 1 : length(x_orth)                                            % Each trial    
+        x_fea(k,:) = [x_orth{k}(:,t)];    
+    end
+    
+    classrate(t,:)  = bayes2c(x_fea,label,n_folds);
+end
 

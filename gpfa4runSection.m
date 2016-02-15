@@ -199,13 +199,52 @@ LDAclass(Xtats, label)
 %=========(10) Classification of Xorth(start,mid,end) ====================% variables: steps (8, and 5) in that order
 %=========================================================================% Requires also library prtools for the classifier
 
-for k = 1 : length(x_orth)
+for k = 1 : length(x_orth)                                                % Each trial
  T           = size(x_orth{k},2);
  x_fea(k,:)  = [x_orth{k}(:,1)' x_orth{k}(:,ceil(T/2))' x_orth{k}(:,end)'];%Start, middle, and end points of trajectories as features (5 x 3) = 15 features     
 end
 
-label           = [R.type]';                                               %labels for the Bayes classifier (1, -1 => type 2)
+label           = [R.type]';                                               %
 label(label==3) = 1;
 
 
 classrate       = bayes2c(x_fea,label,n_folds);
+
+%%
+%=========================================================================% Requires loading the model and data struct and extract the latent
+%=========(11) Classification of Xorth point by point ====================% variables: steps (8, and 5) in that order
+%=========================================================================% Requires also library prtools for the classifier
+                                                                          % An issue is the nonuniform lenght of x_orths
+                                                                          % Run interpolacion to make them uniform
+
+label           = [R.type]';                                              %
+label(label==3) = 1;
+len_x           = min([R.T]);                                             % min len to cut all trajetories to the same length
+
+for t = 1 : len_x 
+    for k = 1 : length(x_orth)                                            % Each trial    
+        x_fea(k,:) = [x_orth{k}(:,t)];    
+    end
+    
+    classrate(t,:)  = bayes2c(x_fea,label,n_folds);
+end
+            
+figure()                                                                  % Show accuracy
+subplot(211)
+set(gcf,'color','w')
+errorbar(classrate(:,1),classrate(:,2))                                   % Total accuracy
+set(gca,'fontsize',14,'fontname','georgia')
+grid on
+xlabel('Bins'), ylabel('Total Accuracy')
+xlim([1, 60])
+
+subplot(212)
+for l = 1 : 2
+    pos     = S(l).run_position(1:bin_size*Fs:end-1,:);                         % Animal position (donwsampled with the bin size)
+    plot(pos(:,1),'color',cgergo.cExpon(l,:),'Displayname',...
+        sprintf('X lap %d',l),'marker','*'), hold on
+    plot(pos(:,2),'color',cgergo.cExpon(l,:),'Displayname',...
+        sprintf('Y lap %d',l))
+end
+xlim([1, 60]), grid on
+xlabel('Bins'), ylabel('Position (mm)')

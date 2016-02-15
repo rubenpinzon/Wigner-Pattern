@@ -33,7 +33,6 @@ for s = 1 : length(sufix)
 end 
 
 
-
 % Extract firing rates in the section given
 for lap = 1:numLaps  
     
@@ -79,7 +78,9 @@ for lap = 1:numLaps
         hold on   
 
     end              
-
+    if int == 13
+       eval(['R(lap).' name '_angularVelo=D(lap).wh_speed(wheelNonZero);'])
+    end
     %Type of trial
     %eval(['R(lap).' name '_firing=firing;'])
     R(lap).trialId = D(lap).trialId;   
@@ -87,5 +88,7 @@ for lap = 1:numLaps
     eval(['R(lap).' name '_spike_train=spk_train;'])
     eval(['R(lap).' name '_interval=idx_lap;'])
     eval(['R(lap).' name '_speed=speed_lap;'])
+    eval(['R(lap).' name '_position=[X_lap, Y_lap];'])
+
     
 end

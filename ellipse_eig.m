@@ -1,11 +1,16 @@
-function ellipse_eig(data, fig, color)
+function [e_x, e_y] = ellipse_eig(data, varargin)
 %ELLIPSE_EIG Calculate the eigenvectors and eigenvalues
 %            of the input data in R^2 and prints in the
 %            figure passed as parameters the corresponding
 %            ellipse.
-%
+%            Data is a (2xsamples) matrix  
 %Ruben Pinzon @2015
-
+show_plot = false;
+if nargin == 3
+    fig   = varargin{1};
+    color = varargin{1};
+    show_plot = true;
+end
 
 covariance = cov(data);
 [eigenvec, eigenval ] = eig(covariance);
@@ -56,7 +61,14 @@ R = [ cos(phi) sin(phi); -sin(phi) cos(phi) ];
 %let's rotate the ellipse to some angle phi
 r_ellipse = [ellipse_x_r;ellipse_y_r]' * R;
 
+
+e_x = r_ellipse(:,1) + X0;
+e_y = r_ellipse(:,2) + Y0;
+
 % Draw the error ellipse
-subplot(3,3,fig)
-plot(r_ellipse(:,1) + X0,r_ellipse(:,2) + Y0,'-.', 'color',color)
-hold on;
+if show_plot
+    subplot(3,3,fig)
+    plot(e_x,e_y,'-.', 'color',color)
+    hold on;
+end
+

@@ -13,7 +13,7 @@ basepath        = '/home/ruben/Documents/HAS/HC-5/';
 
 
 %========================Paramteres and variables==========================
-animal          = 2;
+animal          = 6;
 fprintf('Loading animal %s\n',animals{animal});
 data            = load(files{animal});
 
@@ -248,3 +248,43 @@ for l = 1 : 2
 end
 xlim([1, 60]), grid on
 xlabel('Bins'), ylabel('Position (mm)')
+
+%%
+%=========================================================================%
+%=========(12) Ellipses of the trajectories x_orth    ====================%
+%=========================================================================%
+
+n_latents    = [4 5];
+T_max        = min([R.T]);
+lat_x_left   = zeros(length(n_latents)*sum([R.type]==1),T_max);
+lat_x_right  = zeros(length(n_latents)*sum([R.type]==2),T_max);
+left         = 1;
+right        = 1;
+
+for l = 1 : length(R)
+    if R(l).type == 1
+        lat_x_left(1 + (left-1)*(numel(n_latents)):left*(numel(n_latents)),:)   = x_orth{l}(n_latents,1:T_max);
+        left = left + 1; 
+    elseif R(l).type == 2
+        lat_x_right(1 + (right-1)*(numel(n_latents)):right*(numel(n_latents)),:) = x_orth{l}(n_latents,1:T_max);
+        right = right + 1;
+    end    
+end
+
+ellipseLatent(lat_x_left, lat_x_right)
+%%
+%=========================================================================%
+%=========                   (13)  EID                ====================%
+%=========================================================================%
+name_save_file = 'EID_Run_Section.mat'; 
+zDim    =    1:15;                                                         % Target dimensions
+eid     = zeros(n_folds, len(zDim));
+
+
+for z = 1 : len(zDim)
+    fprintf('Training dim = %d\n',z)
+    M    = trainGPFA(R, z, showpred, n_folds);
+    eid(:,z) = M.like_test;
+end
+save([roots{animal} name_save_file],'eid')
+

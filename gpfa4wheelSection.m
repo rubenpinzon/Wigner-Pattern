@@ -12,7 +12,7 @@ basepath        = '/home/ruben/Documents/HAS/HC-5/';
 [files, animals, roots]= get_matFiles(basepath);
 
 %========================Variables of Interest===========================
-animal          = 1;
+animal          = 6;
 fprintf('Loading animal %s\n',animals{animal});
 data            = load(files{animal});
 
@@ -40,7 +40,7 @@ clear data
 in              = 'wheel';
 out             = 'wheel';
 debug           = false;
-namevar         = ['wheel_' animals{animal}(end-5:end)];
+namevar         = 'wheel';
 %segmentation and filtering of silent neurons
 bin_size        = 0.04; %ms
 min_firing      = 1.0; %minimium firing rate
@@ -53,6 +53,8 @@ name_save_file  = '_trainedGPFA_wheel.mat';
 test_lap        = 10;
 maxTime         = 6; %maximum segmentation time
 filterlaps      = false;
+cgergo          = load('colors');
+
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -105,12 +107,12 @@ end
 % ========================================================================%
 %============== (5)    Show Neural Trajectories   ========================%
 %=========================================================================%
-cgergo = load('colors');
+load([roots{animal} name_save_file])
 
-colors = cgergo.cExpon([2 3 1], :);
+colors = cgergo.cExpon([2 3 1 1], :);
 labels = [W.type];
-x_orth = show_latent({M},W, colors, labels);
-
+x_orth = show_latent({M},W, colors, labels);                               %Lantent with joint model
+%%
 %======================================================================== %
 %============== (6)    Save data                  ========================%
 %=========================================================================%
@@ -210,14 +212,16 @@ LDAclass(Xtats, label)
 
 label           = [W.type]';                                              %
 label(label==3) = 1;
+label(label==4) = 2;
 len_x           = min([W.T]);                                             % min len to cut all trajetories to the same length
 
 for t = 1 : len_x 
     for k = 1 : length(x_orth)                                            % Each trial    
         x_fea(k,:) = [x_orth{k}(:,t)];    
     end
-    
-    classrate(t,:)  = bayes2c(x_fea,label,n_folds);
+    [rate, folds]   = bayes2c(x_fea,label,n_folds,[W.trialId]);
+    Fold(t).infoClass = folds;
+    classrate(t,:)  = rate; 
 end
             
 figure()                                                                  % Show accuracy
@@ -230,14 +234,31 @@ xlabel('Bins'), ylabel('Total Accuracy')
 xlim([1, 150])
 
 subplot(212)
-for l = 1 : 10
-    spe     = R(l).wheel_06_002_angularVelo(1:bin_size*Fs:150*bin_size*Fs);              % Animal position (donwsampled with the bin size)
-    plot(spe,'color',cgergo.cExpon(rem(l,2)+1,:),'Displayname',...
+meanWh_speed_left   = zeros(150*bin_size*Fs,sum([R.type]==1));
+meanWh_speed_right  = zeros(150*bin_size*Fs,sum([R.type]==2));
+left                = 1;
+right               = 1;
+for l = 1 : length(R)
+    spe     = R(l).wheel_angularVelo(1:bin_size*Fs:150*bin_size*Fs);      % Wheel speed (donwsampled with the bin size)
+    plot(spe,'color',cgergo.cPhase(R(l).type,:),'Displayname',...
         sprintf('W lap %d',l),'marker','*'), hold on
-
+    if R(l).type == 1
+        meanWh_speed_left(:, left)   = R(l).wheel_angularVelo(1:150*bin_size*Fs);
+        left = left + 1; 
+    elseif R(l).type == 2
+        meanWh_speed_right(:, right) = R(l).wheel_angularVelo(1:150*bin_size*Fs);
+        right = right + 1;
+    end
+        
 end
 xlim([1, 150]), grid on
 xlabel('Bins'), ylabel('Speed (mm/s)')
+%%
+figure,hold on
+plot(meanWh_speed_left, 'color', cgergo.cExpon(1,:), 'displayname', 'After left')
+plot(meanWh_speed_right, 'color', cgergo.cExpon(2,:), 'displayname', 'After right')
+plot(mean(meanWh_speed_left,2), 'color', cgergo.cExpon(1,:), 'displayname', 'After left', 'linewidth', 2)
+plot(mean(meanWh_speed_right,2), 'color', cgergo.cExpon(2,:), 'displayname', 'After left', 'linewidth', 2)
 
 %%
 %=========================================================================%
@@ -259,3 +280,27 @@ subplot(211)
 hist(t_max(:,1))
 subplot(212)
 hist(t_max(:,2))
+
+%%
+%=========================================================================%
+%=========(12) Ellipses of the trajectories x_orth    ====================%
+%=========================================================================%
+
+n_latents    = [1 2];
+lat_x_left   = zeros(length(n_latents)*sum([R.type]==1),150);
+lat_x_right  = zeros(length(n_latents)*sum([R.type]==2),150);
+left         = 1;
+right        = 1;
+
+for l = 1 : length(R)
+    if R(l).type == 1
+        lat_x_left(1 + (left-1)*(numel(n_latents)):left*(numel(n_latents)),:)   = x_orth{l}(n_latents,:);
+        left = left + 1; 
+    elseif R(l).type == 2
+        lat_x_right(1 + (right-1)*(numel(n_latents)):right*(numel(n_latents)),:) = x_orth{l}(n_latents,:);
+        right = right + 1;
+    end    
+end
+
+ellipseLatent(lat_x_left, lat_x_right)
+

@@ -5,7 +5,6 @@
 %        branch2.m using functions. See branch2.m for further details.
 %Version 1.0 Ruben Pinzon@2015
 
-
 clc, close all; clear all;
 
 basepath        = '/home/ruben/Documents/HAS/HC-5/';
@@ -236,6 +235,8 @@ xlim([1, 150])
 subplot(212)
 meanWh_speed_left   = zeros(150*bin_size*Fs,sum([R.type]==1));
 meanWh_speed_right  = zeros(150*bin_size*Fs,sum([R.type]==2));
+meanWh_speed_right  = zeros(150*bin_size*Fs,len(R));
+
 left                = 1;
 right               = 1;
 for l = 1 : length(R)
@@ -249,20 +250,66 @@ for l = 1 : length(R)
         meanWh_speed_right(:, right) = R(l).wheel_angularVelo(1:150*bin_size*Fs);
         right = right + 1;
     end
+    meanWh(:, l) = R(l).wheel_angularVelo(1:150*bin_size*Fs); 
         
 end
 xlim([1, 150]), grid on
 xlabel('Bins'), ylabel('Speed (mm/s)')
-%%
-figure,hold on
-plot(meanWh_speed_left, 'color', cgergo.cExpon(1,:), 'displayname', 'After left')
-plot(meanWh_speed_right, 'color', cgergo.cExpon(2,:), 'displayname', 'After right')
-plot(mean(meanWh_speed_left,2), 'color', cgergo.cExpon(1,:), 'displayname', 'After left', 'linewidth', 2)
-plot(mean(meanWh_speed_right,2), 'color', cgergo.cExpon(2,:), 'displayname', 'After left', 'linewidth', 2)
+%% 
+%=========================================================================% Requires loading the model and data struct and extract the latent
+%======= (12) Wheel angular velocity profile colored as trial type =======% Steps (11-8-5)
+%=========================================================================%
+
+mu_left     = mean(meanWh_speed_left,2);
+sd_left     = std(meanWh_speed_left,1,2);
+mu_right    = mean(meanWh_speed_right,2);
+sd_right    = std(meanWh_speed_right,1,2);
+t       = linspace(0,maxTime,len(mu_left));
+
+check_bin = 69;
+output    = [];
+trials    = [];
+for j = 1 : n_folds
+    output  = [output, Fold(check_bin).infoClass(j).ypred];
+    trials  = [trials, Fold(check_bin).infoClass(j).trialId];
+end
+
+left                = 1;
+right               = 1;
+for l = 1 : len(R)
+   if output(trials==l) == 1 
+        mu_left_class(:,left) = meanWh(:, l);
+        left = left + 1;
+   elseif output(trials==l) == 2
+        mu_right_class(:,right) = meanWh(:, l);
+        right = right + 1;        
+   end
+    
+end
+
+mu_left_c     = mean(mu_left_class,2);
+sd_left_c     = std(mu_left_class,1,2);
+mu_right_c    = mean(mu_right_class,2);
+sd_right_c    = std(mu_right_class,1,2);
+
+figure, hold on
+set(gcf,'color','w')
+shadedErrorBar(t,mu_left',sd_left','g')
+shadedErrorBar(t,mu_right',sd_right','r')
+xlabel('Time(s)'), ylabel('Speed (mm/s)')
+grid on
+
+figure, hold on
+set(gcf,'color','w')
+shadedErrorBar(t,mu_left_c',sd_left_c','g')
+shadedErrorBar(t,mu_right_c',sd_right_c','r')
+xlabel('Time(s)'), ylabel('Speed (mm/s)')
+title(['Color labeled according to classifier, bin#' num2str(check_bin)])
+grid on
 
 %%
 %=========================================================================%
-%=========(11) Studying the speed profile in the wheel====================%
+%=========(13) Studying the speed profile in the wheel====================%
 %=========================================================================%
 figure
 t_max  = nan(length(R),3);
@@ -283,7 +330,7 @@ hist(t_max(:,2))
 
 %%
 %=========================================================================%
-%=========(12) Ellipses of the trajectories x_orth    ====================%
+%=========(14) Ellipses of the trajectories x_orth    ====================%
 %=========================================================================%
 
 n_latents    = [1 2];

@@ -53,6 +53,7 @@ test_lap        = 10;
 maxTime         = 6; %maximum segmentation time
 filterlaps      = false;
 cgergo          = load('colors');
+colors          = cgergo.cExpon([2 3 1 1], :);
 
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
@@ -108,9 +109,8 @@ end
 %=========================================================================%
 load([roots{animal} name_save_file])
 
-colors = cgergo.cExpon([2 3 1 1], :);
 labels = [W.type];
-x_orth = show_latent({M},W, colors, labels);                               %Lantent with joint model
+x_orth = show_latent({M},W, colors, labels, debug);                       %Lantent with joint model
 %%
 %======================================================================== %
 %============== (6)    Save data                  ========================%
@@ -207,31 +207,39 @@ LDAclass(Xtats, label)
 %=========(11) Classification of Xorth point by point ====================% variables: steps (8, and 5) in that order
 %=========================================================================% Requires also library prtools for the classifier
                                                                           % An issue is the nonuniform lenght of x_orths
-                                                                          % Run interpolacion to make them uniform
+%W=filter_laps(W);                                                        % Run interpolacion to make them uniform
 
+load([roots{animal} name_save_file])                                      % If model was not trained it can be loaded:
 label           = [W.type]';                                              %
+x_orth          = show_latent({M},W, colors, label, debug);               %Lantent with joint model
+%%
 label(label==3) = 1;
 label(label==4) = 2;
 len_x           = min([W.T]);                                             % min len to cut all trajetories to the same length
-
+lap_int         = 6:50;
+n_lat           = 1:1;
 for t = 1 : len_x 
-    for k = 1 : length(x_orth)                                            % Each trial    
-        x_fea(k,:) = [x_orth{k}(:,t)];    
+    x_fea          = zeros(len(lap_int),len(n_lat));
+    for k = 1 : length(lap_int)                                            % Each trial    
+        kk         = lap_int(k);        
+        x_fea(kk,:) = [x_orth{kk}(n_lat,t)];    
     end
-    [rate, folds]   = bayes2c(x_fea,label,n_folds,[W.trialId]);
+    [rate, folds]   = bayes2c(x_fea,label(lap_int),n_folds,[W.trialId]);
     Fold(t).infoClass = folds;
     classrate(t,:)  = rate; 
 end
             
-figure()                                                                  % Show accuracy
-subplot(211)
+figure(), hold on                                                         % Show accuracy
+%subplot(211)
 set(gcf,'color','w')
 errorbar(classrate(:,1),classrate(:,2))                                   % Total accuracy
 set(gca,'fontsize',14,'fontname','georgia')
 grid on
 xlabel('Bins'), ylabel('Total Accuracy')
 xlim([1, 150])
-
+line([1, 150],[mean(classrate(:,1)) mean(classrate(:,1))],'color','k','linewidth',2)
+title(sprintf('Number of laps %d: mean=%3.3f',len(W),mean(classrate(:,1))))
+%%
 subplot(212)
 meanWh_speed_left   = zeros(150*bin_size*Fs,sum([R.type]==1));
 meanWh_speed_right  = zeros(150*bin_size*Fs,sum([R.type]==2));

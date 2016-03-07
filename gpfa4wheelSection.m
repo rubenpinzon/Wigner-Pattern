@@ -216,8 +216,8 @@ x_orth          = show_latent({M},W, colors, label, debug);               %Lante
 label(label==3) = 1;
 label(label==4) = 2;
 len_x           = min([W.T]);                                             % min len to cut all trajetories to the same length
-lap_int         = 6:50;
-n_lat           = 1:1;
+lap_int         = 1:52;
+n_lat           = 1:10;
 for t = 1 : len_x 
     x_fea          = zeros(len(lap_int),len(n_lat));
     for k = 1 : length(lap_int)                                            % Each trial    
@@ -228,7 +228,14 @@ for t = 1 : len_x
     Fold(t).infoClass = folds;
     classrate(t,:)  = rate; 
 end
-            
+    
+%Data flatted for knn
+x_knn = zeros(10,len(x_orth{1}),len(x_orth));
+for lap = 1 : len(x_orth)
+   x_knn(:,:,lap) = x_orth{lap};    
+end
+save([roots{animal} 'x_orth.mat'],'x_knn','label')
+
 figure(), hold on                                                         % Show accuracy
 %subplot(211)
 set(gcf,'color','w')

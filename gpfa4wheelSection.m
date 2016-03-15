@@ -48,13 +48,13 @@ n_folds         = 3;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
-name_save_file  = '_trainedGPFA_wheel.mat';
+name_save_file  = '_trainedGPFA_wheel_bins25to100.mat';
 test_lap        = 10;
 maxTime         = 6; %maximum segmentation time
 filterlaps      = false;
 cgergo          = load('colors');
 colors          = cgergo.cExpon([2 3 1 1], :);
-
+intervalBins    = [25 105];
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%
@@ -87,6 +87,9 @@ R = get_section(D(2:end-1), in, out, debug, namevar); %lap#1: sensor errors
 
 [W,keep_neurons]    = segment(R, bin_size, Fs, min_firing,...
                               [namevar '_spike_train'], maxTime);
+                          
+W                   = filterbins(W,intervalBins(1),intervalBins(2));       % get the last part of the wheel section bins (100-225)    
+
 if filterlaps
     W               = filter_laps(W);
 end
@@ -212,7 +215,7 @@ LDAclass(Xtats, label)
 load([roots{animal} name_save_file])                                      % If model was not trained it can be loaded:
 label           = [W.type]';                                              %
 x_orth          = show_latent({M},W, colors, label, debug);               %Lantent with joint model
-%%
+%% save latents to mat file and classification
 label(label==3) = 1;
 label(label==4) = 2;
 len_x           = min([W.T]);                                             % min len to cut all trajetories to the same length
@@ -234,8 +237,8 @@ x_knn = zeros(10,len(x_orth{1}),len(x_orth));
 for lap = 1 : len(x_orth)
    x_knn(:,:,lap) = x_orth{lap};    
 end
-save([roots{animal} 'x_orth.mat'],'x_knn','label')
-
+save(sprintf('%sx_orth%s.mat',roots{animal},name_save_file),'x_knn','label')
+%%
 figure(), hold on                                                         % Show accuracy
 %subplot(211)
 set(gcf,'color','w')

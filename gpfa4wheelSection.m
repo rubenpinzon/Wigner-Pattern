@@ -48,13 +48,13 @@ n_folds         = 3;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
-name_save_file  = '_trainedGPFA_wheel_bins25to100.mat';
+name_save_file  = '_trainedGPFA_wheel_bins1to70.mat';
 test_lap        = 10;
-maxTime         = 6; %maximum segmentation time
+maxTime         = 10; %maximum segmentation time
 filterlaps      = false;
 cgergo          = load('colors');
 colors          = cgergo.cExpon([2 3 1 1], :);
-intervalBins    = [25 105];
+intervalBins    = [1 70];
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%

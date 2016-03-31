@@ -11,7 +11,7 @@ basepath        = '/home/ruben/Documents/HAS/HC-5/';
 [files, animals, roots]= get_matFiles(basepath);
 
 %========================Variables of Interest===========================
-animal          = 6;
+animal          = 2;
 fprintf('Loading animal %s\n',animals{animal});
 data            = load(files{animal});
 
@@ -48,13 +48,13 @@ n_folds         = 3;
 zDim            = 10; %latent dimension
 showpred        = false; %show predicted firing rate
 train_split      = true; %train GPFA on left/right separately?
-name_save_file  = '_trainedGPFA_wheel_bins1to70.mat';
+name_save_file  = '_trainedGPFA_wheel_bins1to90.mat';
 test_lap        = 10;
 maxTime         = 10; %maximum segmentation time
 filterlaps      = false;
 cgergo          = load('colors');
 colors          = cgergo.cExpon([2 3 1 1], :);
-intervalBins    = [1 70];
+intervalBins    = [1 90];
 % ========================================================================%
 %==============   (1) Extract trials              ========================%
 %=========================================================================%

@@ -3,6 +3,7 @@ import scipy.ndimage.filters as sfil
 import numpy as np
 import os
 
+
 def find_files(folder_base):
     """
     Finds the matlab files in the hc-5 database containing the experimental data.
@@ -43,7 +44,10 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
 
     maze_regions = {'mid_arm': [0], 'pre_turn': [1], 'turn': [2, 3],
                     'lat_arm': [4, 5], 'reward': [6, 7], 'delay': [8, 11], 'wheel': [12]}
+    alternations = ['left', 'right', 'errorLeft', 'errorRight']
     print 'Available sections of the maze {}'.format(maze_regions.keys())
+
+    # data from the database
     data = sio.loadmat(path)
     clusters = np.squeeze(data['Spike']['totclu'][0, 0])
     spikes = np.squeeze(data['Spike']['res'][0, 0])
@@ -55,6 +59,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     y_spk = np.squeeze(data['Spike']['Y'][0, 0])
     direction = np.squeeze(data['Laps']['TrialType'][0, 0])
     hit = np.squeeze(data['Par']['BehavType'][0, 0]) == 1
+
     # Separate spikes by neuron number
     neuron_xy = list()
     neuron_spk = list()
@@ -63,82 +68,42 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     trajectory_all = list()
     num_laps = len(sections)
 
-    for n in range(1, max(clusters) + 1):
+    if section == 'Run':
+        # for backwards compatibility
+        maze_in = [0]
+        maze_out = [5, 6]
+    else:
+        assert len(section) == 2, 'Sections should include start and end area: [turn, delay]'
+        maze_in = maze_regions[section[0]]
+        maze_out = maze_regions[section[1]]
 
-        if only_pyr and isIntern[n - 1]:
-            continue
-        spk = spikes[clusters == n]
-        xy_cell = [x_spk[clusters == n], y_spk[clusters == n]]
-        if verbose:
-            print 'neuron {}-th with {} spks'.format(n, len(spk))
+    experiment = []
+    for n_lap in range(num_laps):
+        spikes = []
+        position = []
+        t_type = 'left'
+        for n_cell in range(1, max(clusters) + 1):
+            if only_pyr and isIntern[n_cell - 1]:
+                continue
+            spk = spikes[clusters == n_cell]
+            pos_xy = [x_spk[clusters == n_cell], y_spk[clusters == n_cell]]
+            if verbose:
+                print 'neuron {}-th with {} spks'.format(n_cell, len(spk))
 
-        if section == 'Run':
-            # Get intervals of interest: Section 2 to 6 that correspond to the running sections.
-            # Section 1 seems to be between the running wheel and the central arm of the Maze.
-            #  It is not clear the boundary thus it is avoided
-            maze_in = [0]
-            maze_out = [5, 6]
-        else:
-            assert len(section) == 2, 'Sections should include start and end area: [turn, delay]'
-            maze_in = maze_regions[section[0]]
-            maze_out = maze_regions[section[1]]
-        if verbose:
-            print 'Neuron {}-th is pyramidal with {} spks'.format(n, len(spk))
+            start_sect, end_sect = sum(sections[n_lap][maze_in, 0]), sum(sections[n_lap][maze_out, 1])
+            idx = np.where(np.logical_and(spk >= start_sect, spk <= end_sect))
+            t_type = alternations[direction[start_sect]]
 
-        laps = list()
-        xy_laps = list()
-        duration = list()
-        arm = list()
-        trajectory_dict = {'left': trajectory_left, 'right': trajectory_right}
+            # spike times aligned to the start of the section
+            spikes.append(spk[idx] - start_sect)
+            position.append((pos_xy[0][idx], pos_xy[1][idx]))
 
-        for i in range(num_laps):
-            start_run, end_run = sum(sections[i][maze_in, 0]), sum(sections[i][maze_out, 1])
-            idx = np.where(np.logical_and(spk >= start_run, spk <= end_run))
-            # save spike events aligned to the entering to sect 2.
-            laps.append(spk[idx] - start_run)
-            xy_laps.append((xy_cell[0][idx], xy_cell[1][idx]))
-            # duration of each lap
-            duration.append(end_run - start_run)
-            arm.append(direction[start_run])
+        trial = Trials(t_id=n_lap, t_type=t_type, spikes=spikes, position=position, section=section)
+        experiment.append(trial)
 
-            # extract position per lap
-            # split the trajectories based on the Y position
-            trajectory_all.append((X[start_run:end_run], Y[start_run:end_run]))
-            if hit[i]:
-                if Y[end_run] > Y[start_run]:
-                    trajectory_left.append((X[start_run:end_run], Y[start_run:end_run]))
-                    assert Y[end_run] > Y[start_run], 'lap {} is not to the left as supposed'.format(i)
-                else:
-                    trajectory_right.append((X[start_run:end_run], Y[start_run:end_run]))
-                    assert Y[end_run] < Y[start_run], 'lap {} is not to the right as supposed'.format(i)
-
-        neuron_spk.append(laps)
-        neuron_xy.append(xy_laps)
-
-    neuron = {'spikes': neuron_spk, 'xy': neuron_xy, 'direction': arm, 'hit': hit}
-
-    # compute the average trajectories by interpolating to the same length all
-    # the trajectories in the same direction
-    trajectory_dict_interp = dict()
-    for dir, trajectory in trajectory_dict.iteritems():
-        _, max_time = np.shape(max(trajectory, key=lambda x: np.shape(x)[1]))
-        trajectory_inter = list()
-        for tra in trajectory:
-            x, y = tra[0], tra[1]
-            xp = np.interp(range(max_time), range(len(x)), x)
-            yp = np.interp(range(max_time), range(len(y)), y)
-            trajectory_inter.append([xp, yp])
-        trajectory_dict_interp[dir + '_interp'] = trajectory_inter
-        trajectory_median = np.median(trajectory_inter, axis=0)
-        trajectory_dict_interp[dir + '_median'] = (
-            fil.gaussian_filter1d(trajectory_median[0], 50.), fil.gaussian_filter1d(trajectory_median[1], 50.))
-
-    trajectory_dict.update(trajectory_dict_interp)
-    trajectory_dict.update({'all_traj': trajectory_all})
-
-    print '{} cells extracted'.format(len(neuron['spikes']))
+    print '{} cells extracted'.format(experiment[0].n_spikes)
     print '{} Loading completed'.format(path)
-    return neuron, trajectory_dict, duration
+    return experiment
 
 
 def raster(cells, title=''):
@@ -424,3 +389,16 @@ def construct_rois(bin_shape, path, verbose=False, color=[1, 0, 0]):
             plt.plot(roi.T[0], roi.T[1], color=color)
         centers.append(center)
     return centers, rois
+
+
+class Trials:
+    n_trials = 0
+
+    def __init__(self, t_id, t_type, spikes, position, section):
+        self.id = t_id
+        self.type = t_type
+        self.spikes = spikes
+        self.position = position
+        self.section = section
+        self.n_cells = len(spikes)
+        Trials.n_trials += 1

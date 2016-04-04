@@ -58,14 +58,9 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     x_spk = np.squeeze(data['Spike']['X'][0, 0])
     y_spk = np.squeeze(data['Spike']['Y'][0, 0])
     direction = np.squeeze(data['Laps']['TrialType'][0, 0])
-    hit = np.squeeze(data['Par']['BehavType'][0, 0]) == 1
 
     # Separate spikes by neuron number
-    neuron_xy = list()
-    neuron_spk = list()
-    trajectory_left = list()
-    trajectory_right = list()
-    trajectory_all = list()
+
     num_laps = len(sections)
 
     if section == 'Run':
@@ -79,9 +74,12 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
 
     experiment = []
     for n_lap in range(num_laps):
-        spikes = []
-        position = []
-        t_type = 'left'
+        spk_data = []
+        pos_data = []
+        start_sect, end_sect = sum(sections[n_lap][maze_in, 0]), sum(sections[n_lap][maze_out, 1])
+        t_type = alternations[direction[start_sect] - 1]
+        animal_pos = (X[start_sect:end_sect], Y[start_sect:end_sect])
+
         for n_cell in range(1, max(clusters) + 1):
             if only_pyr and isIntern[n_cell - 1]:
                 continue
@@ -89,19 +87,16 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
             pos_xy = [x_spk[clusters == n_cell], y_spk[clusters == n_cell]]
             if verbose:
                 print 'neuron {}-th with {} spks'.format(n_cell, len(spk))
-
-            start_sect, end_sect = sum(sections[n_lap][maze_in, 0]), sum(sections[n_lap][maze_out, 1])
             idx = np.where(np.logical_and(spk >= start_sect, spk <= end_sect))
-            t_type = alternations[direction[start_sect]]
-
             # spike times aligned to the start of the section
-            spikes.append(spk[idx] - start_sect)
-            position.append((pos_xy[0][idx], pos_xy[1][idx]))
+            spk_data.append(spk[idx] - start_sect)
+            pos_data.append((pos_xy[0][idx], pos_xy[1][idx]))
 
-        trial = Trials(t_id=n_lap, t_type=t_type, spikes=spikes, position=position, section=section)
+        trial = Trials(t_id=n_lap, t_type=t_type, spikes=spk_data, spk_pos=pos_data,
+                       animal_pos=animal_pos, section=section)
         experiment.append(trial)
 
-    print '{} cells extracted'.format(experiment[0].n_spikes)
+    print '{} cells extracted'.format(experiment[0].n_cells)
     print '{} Loading completed'.format(path)
     return experiment
 
@@ -393,12 +388,29 @@ def construct_rois(bin_shape, path, verbose=False, color=[1, 0, 0]):
 
 class Trials:
     n_trials = 0
+    max_length = 0
+    colors = {'left': [1, 0.8, 0.8], 'right': [0.8, 0.8, 1.0],
+             'errorLeft': [0.2, 0.2, 0.2], 'errorRight': [0.2, 0.2, 0.2]}
 
-    def __init__(self, t_id, t_type, spikes, position, section):
+    def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section):
         self.id = t_id
         self.type = t_type
         self.spikes = spikes
-        self.position = position
+        self.spikes_pos = spk_pos
+        self.animal_pos = animal_pos
         self.section = section
         self.n_cells = len(spikes)
+        self.color = self.colors[t_type]
         Trials.n_trials += 1
+
+    def cumulative_dist(self):
+        d = []
+        X, Y = self.animal_pos
+        x_org = X[0]
+        y_org = Y[0]
+        for x, y in zip(X, Y):
+            d.append(np.sqrt((x - x_org)**2 + (y - y_org)**2))
+            x_org = x
+            y_org = y
+        return np.cumsum(d)
+

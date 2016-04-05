@@ -390,7 +390,7 @@ class Trials:
     n_trials = 0
     max_length = 0
     colors = {'left': [1, 0.8, 0.8], 'right': [0.8, 0.8, 1.0],
-             'errorLeft': [0.2, 0.2, 0.2], 'errorRight': [0.2, 0.2, 0.2]}
+              'errorLeft': [0.2, 0.2, 0.2], 'errorRight': [0.2, 0.2, 0.2]}
 
     def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section):
         self.id = t_id
@@ -401,6 +401,8 @@ class Trials:
         self.section = section
         self.n_cells = len(spikes)
         self.color = self.colors[t_type]
+        self.under_use = True
+        self.spikes_lin = self.lin_spikes_pos()
         Trials.n_trials += 1
 
     def cumulative_dist(self):
@@ -409,8 +411,24 @@ class Trials:
         x_org = X[0]
         y_org = Y[0]
         for x, y in zip(X, Y):
-            d.append(np.sqrt((x - x_org)**2 + (y - y_org)**2))
+            d.append(np.sqrt((x - x_org) ** 2 + (y - y_org) ** 2))
             x_org = x
             y_org = y
         return np.cumsum(d)
 
+    def disable(self):
+        print 'Trial {}, type= {} disabled'.format(self.id, self.type)
+        self.under_use = False
+
+    def lin_spikes_pos(self):
+        dn = np.linalg.norm(self.animal_pos, axis=0)
+        d = self.cumulative_dist()
+        spikes_lin_pos = []
+        for spk in self.spikes_pos:
+            ds = np.linalg.norm(spk, axis=0).tolist()
+            index = []
+            for s in ds:
+                idx = np.where(dn == s)
+                index.extend(idx[0])
+            spikes_lin_pos.append((index, d[index]))
+        return spikes_lin_pos

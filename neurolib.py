@@ -422,13 +422,16 @@ class Trials:
 
     def lin_spikes_pos(self):
         dn = np.linalg.norm(self.animal_pos, axis=0)
+        [xa, ya] = self.animal_pos
         d = self.cumulative_dist()
+
         spikes_lin_pos = []
         for spk in self.spikes_pos:
-            ds = np.linalg.norm(spk, axis=0).tolist()
+            spkT = np.transpose(spk)
             index = []
-            for s in ds:
-                idx = np.where(dn == s)
+            for xs, ys in spkT:
+                idx = np.where(xa == xs) and np.where(ya == ys)
                 index.extend(idx[0])
             spikes_lin_pos.append((index, d[index]))
+
         return spikes_lin_pos

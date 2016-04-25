@@ -57,6 +57,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
     Y = np.squeeze(data['Track']['Y'][0, 0])
     x_spk = np.squeeze(data['Spike']['X'][0, 0])
     y_spk = np.squeeze(data['Spike']['Y'][0, 0])
+    wheel = np.squeeze(data['Laps']['WhlSpeedCW'][0, 0])
     direction = np.squeeze(data['Laps']['TrialType'][0, 0])
 
     # Separate spikes by neuron number
@@ -79,6 +80,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
         start_sect, end_sect = sum(sections[n_lap][maze_in, 0]), sum(sections[n_lap][maze_out, 1])
         t_type = alternations[direction[start_sect] - 1]
         animal_pos = (X[start_sect:end_sect], Y[start_sect:end_sect])
+        wh_speed = wheel[start_sect:end_sect]
 
         for n_cell in range(1, max(clusters) + 1):
             if only_pyr and isIntern[n_cell - 1]:
@@ -93,7 +95,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
             pos_data.append((pos_xy[0][idx], pos_xy[1][idx]))
 
         trial = Trials(t_id=n_lap, t_type=t_type, spikes=spk_data, spk_pos=pos_data,
-                       animal_pos=animal_pos, section=section)
+                       animal_pos=animal_pos, section=section, wheel=wh_speed)
         experiment.append(trial)
 
     print '{} cells extracted'.format(experiment[0].n_cells)
@@ -392,7 +394,7 @@ class Trials:
     colors = {'left': [1, 0.8, 0.8], 'right': [0.8, 0.8, 1.0],
               'errorLeft': [0.2, 0.2, 0.2], 'errorRight': [0.2, 0.2, 0.2]}
 
-    def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section):
+    def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section, wheel):
         self.id = t_id
         self.type = t_type
         self.spikes = spikes
@@ -403,6 +405,7 @@ class Trials:
         self.color = self.colors[t_type]
         self.under_use = True
         self.spikes_lin = self.lin_spikes_pos()
+        self.wheel = wheel
         Trials.n_trials += 1
 
     def cumulative_dist(self):

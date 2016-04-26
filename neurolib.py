@@ -24,7 +24,7 @@ def find_files(folder_base):
     return names
 
 
-def get_cells(path, section=None, only_pyr=None, verbose=False):
+def get_cells(path, section=None, only_pyr=None, verbose=False, process=False):
     """
     Extract the spikes events from the MAT file of the HC-5 DB.
     if section is provided, then spikes are split accordingly
@@ -95,7 +95,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False):
             pos_data.append((pos_xy[0][idx], pos_xy[1][idx]))
 
         trial = Trials(t_id=n_lap, t_type=t_type, spikes=spk_data, spk_pos=pos_data,
-                       animal_pos=animal_pos, section=section, wheel=wh_speed)
+                       animal_pos=animal_pos, section=section, wheel=wh_speed, process=process)
         experiment.append(trial)
 
     print '{} cells extracted'.format(experiment[0].n_cells)
@@ -394,7 +394,7 @@ class Trials:
     colors = {'left': [1, 0.8, 0.8], 'right': [0.8, 0.8, 1.0],
               'errorLeft': [0.2, 0.2, 0.2], 'errorRight': [0.2, 0.2, 0.2]}
 
-    def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section, wheel):
+    def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section, wheel, process=False):
         self.id = t_id
         self.type = t_type
         self.spikes = spikes
@@ -404,8 +404,9 @@ class Trials:
         self.n_cells = len(spikes)
         self.color = self.colors[t_type]
         self.under_use = True
-        self.spikes_lin = self.lin_spikes_pos()
         self.wheel = wheel
+        if process:
+            self.spikes_lin = self.lin_spikes_pos()
         Trials.n_trials += 1
 
     def cumulative_dist(self):

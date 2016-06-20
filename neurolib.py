@@ -59,6 +59,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False, process=False):
     y_spk = np.squeeze(data['Spike']['Y'][0, 0])
     wheel = np.squeeze(data['Laps']['WhlSpeedCW'][0, 0])
     direction = np.squeeze(data['Laps']['TrialType'][0, 0])
+    theta = np.squeeze(data['Track']['thetaPh'][0, 0])
 
     # Separate spikes by neuron number
 
@@ -81,6 +82,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False, process=False):
         t_type = alternations[direction[start_sect] - 1]
         animal_pos = (X[start_sect:end_sect], Y[start_sect:end_sect])
         wh_speed = wheel[start_sect:end_sect]
+        th_phase = theta[start_sect:end_sect]
 
         for n_cell in range(1, max(clusters) + 1):
             if only_pyr and isIntern[n_cell - 1]:
@@ -95,7 +97,7 @@ def get_cells(path, section=None, only_pyr=None, verbose=False, process=False):
             pos_data.append((pos_xy[0][idx], pos_xy[1][idx]))
 
         trial = Trials(t_id=n_lap, t_type=t_type, spikes=spk_data, spk_pos=pos_data,
-                       animal_pos=animal_pos, section=section, wheel=wh_speed, process=process)
+                       animal_pos=animal_pos, section=section, wheel=wh_speed, process=process, theta=th_phase)
         experiment.append(trial)
 
     print '{} cells extracted'.format(experiment[0].n_cells)
@@ -394,7 +396,7 @@ class Trials:
     colors = {'left': [1, 0.8, 0.8], 'right': [0.8, 0.8, 1.0],
               'errorLeft': [0.2, 0.2, 0.2], 'errorRight': [0.2, 0.2, 0.2]}
 
-    def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section, wheel, process=False):
+    def __init__(self, t_id, t_type, spikes, spk_pos, animal_pos, section, wheel, theta, process=False):
         self.id = t_id
         self.type = t_type
         self.spikes = spikes
@@ -405,6 +407,7 @@ class Trials:
         self.color = self.colors[t_type]
         self.under_use = True
         self.wheel = wheel
+        self.theta = theta
         if process:
             self.spikes_lin = self.lin_spikes_pos()
         Trials.n_trials += 1
